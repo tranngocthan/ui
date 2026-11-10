@@ -2678,8 +2678,28 @@
     }
 
     async function flashOverWebSerial() {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (isIOS) {
+        alert(
+          "📱 IPHONE KHÔNG HỖ TRỢ NẠP QUA CÁP USB:\n\n" +
+          "Hệ điều hành iOS không hỗ trợ giao tiếp Web Serial qua cáp.\n\n" +
+          "👉 GIẢI PHÁP TRÊN IPHONE:\n" +
+          "1. Hãy dùng tính năng '📶 Đồng bộ Bluetooth' (dùng trình duyệt Bluefy trên iPhone).\n" +
+          "2. Hoặc nạp qua USB trên máy tính (Google Chrome / Edge)!"
+        );
+        return;
+      }
+
       if (!("serial" in navigator)) {
-        alert("Trình duyệt của bạn chưa hỗ trợ Web Serial API. Vui lòng sử dụng Google Chrome hoặc Microsoft Edge để nạp trực tiếp qua cổng USB / Bluetooth COM!");
+        if (!window.isSecureContext && window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          alert(
+            "⚠️ KẾT NỐI BỊ CHẶN DO DÙNG HTTP KHÔNG BẢO MẬT:\n\n" +
+            "Trình duyệt chỉ cho phép Web Serial trên HTTPS hoặc localhost.\n\n" +
+            "👉 Hãy mở file trực tiếp (file:///) hoặc mở trên máy tính qua localhost!"
+          );
+        } else {
+          alert("Trình duyệt của bạn chưa hỗ trợ Web Serial API. Vui lòng sử dụng Google Chrome hoặc Microsoft Edge để nạp trực tiếp qua cổng USB!");
+        }
         return;
       }
 
@@ -2804,8 +2824,11 @@
         updateFlashModal("Kích hoạt giao diện mới trên màn hình LCD...", 96);
         const switchPkt = buildProtoPacket(0x08, seq++, nameBytes);
         await writer.write(switchPkt);
-        await waitForAckFrame(0x88, 1000);
-        await new Promise(r => setTimeout(r, 150));
+        const switchAck = await waitForAckFrame(0x88, 2000);
+        if (switchAck && switchAck.length > 0 && switchAck[0] !== 0) {
+          throw new Error("ESP32 báo lỗi khi kích hoạt giao diện (mã: " + switchAck[0] + ")");
+        }
+        await new Promise(r => setTimeout(r, 300));
 
         if (reader) {
           try { await reader.cancel(); reader.releaseLock(); } catch (_) {}
@@ -2838,8 +2861,32 @@
     // 10. DIRECT BLUETOOTH LOW ENERGY (BLE 5.0) SYNC - NORDIC UART SERVICE (NUS)
     // ==============================================================================
     async function syncOverWebBluetooth() {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
       if (!("bluetooth" in navigator)) {
-        alert("Trình duyệt của bạn chưa hỗ trợ Web Bluetooth API.\n\nVui lòng sử dụng Google Chrome hoặc Microsoft Edge (trên Windows, macOS hoặc Android) và đảm bảo đã bật Bluetooth trên thiết bị!");
+        if (isIOS) {
+          alert(
+            "📱 BẠN ĐANG MỞ BẰNG SAFARI / CHROME TRÊN IPHONE:\n\n" +
+            "Apple mặc định khóa Web Bluetooth trên trình duyệt Safari và Chrome iOS.\n\n" +
+            "👉 ĐỂ KẾT NỐI BLUETOOTH TRÊN IPHONE:\n" +
+            "1. Lên App Store cài ứng dụng miễn phí: 'Bluefy - Web BLE Browser'\n" +
+            "2. Mở Bluefy và truy cập link thiết kế này để kết nối Bluetooth 1 chạm!\n\n" +
+            "💡 Cách khác: Bấm 'Xuất .uipack' lưu vào Tệp (Files) rồi gửi qua app nRF Connect hoặc chép vào thẻ nhớ SD."
+          );
+        } else if (!window.isSecureContext && window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          alert(
+            "⚠️ KẾT NỐI BỊ CHẶN DO DÙNG HTTP KHÔNG BẢO MẬT:\n\n" +
+            "Google Chrome / Edge chỉ kích hoạt Web Bluetooth trên giao thức HTTPS hoặc localhost.\n\n" +
+            "👉 Giải pháp:\n" +
+            "1. Mở trực tiếp file trên máy (file:///...)\n" +
+            "2. Hoặc mở qua HTTPS (GitHub Pages, Vercel, hoặc Cloudflare Tunnel)!"
+          );
+        } else {
+          alert(
+            "Trình duyệt hiện tại chưa hỗ trợ Web Bluetooth API.\n\n" +
+            "Vui lòng sử dụng Google Chrome hoặc Microsoft Edge (trên Windows, macOS, Android) hoặc Bluefy (trên iPhone) và đảm bảo đã bật Bluetooth trên thiết bị!"
+          );
+        }
         return;
       }
 
@@ -2872,6 +2919,7 @@
         txChar = await service.getCharacteristic(NUS_TX_CHAR_UUID);
 
         let rxBuf = new Uint8Array(0);
+        let rxNotifySignal = null;
         notificationHandler = (event) => {
           const val = new Uint8Array(event.target.value.buffer);
           if (val.length > 0) {
@@ -2879,6 +2927,10 @@
             merged.set(rxBuf, 0);
             merged.set(val, rxBuf.length);
             rxBuf = merged;
+            if (rxNotifySignal) {
+              rxNotifySignal();
+              rxNotifySignal = null;
+            }
           }
         };
 
@@ -2888,6 +2940,7 @@
         async function waitForAckFrame(expectedRespCmd, timeoutMs = 2500) {
           const deadline = performance.now() + timeoutMs;
           while (performance.now() < deadline) {
+            let matchedPayload = null;
             for (let i = 0; i + 14 <= rxBuf.length; i++) {
               if (rxBuf[i] === 0xAA && rxBuf[i + 1] === 0x55 && rxBuf[i + 2] === 0x01) {
                 const rCmd = rxBuf[i + 3];
@@ -2897,18 +2950,26 @@
                   if (rxBuf[i + frameLen - 2] === 0x55 && rxBuf[i + frameLen - 1] === 0xAA) {
                     const payload = rxBuf.slice(i + 8, i + 8 + rLen);
                     rxBuf = rxBuf.slice(i + frameLen);
-                    if (rCmd === expectedRespCmd) return payload;
+                    if (rCmd === expectedRespCmd) {
+                      matchedPayload = payload;
+                    }
                   }
                 }
               }
             }
-            await new Promise(r => setTimeout(r, 15));
+            if (matchedPayload) return matchedPayload;
+            const remaining = deadline - performance.now();
+            if (remaining <= 0) break;
+            await Promise.race([
+              new Promise(resolve => { rxNotifySignal = resolve; }),
+              new Promise(resolve => setTimeout(resolve, Math.min(remaining, 40)))
+            ]);
           }
           return null;
         }
 
         async function writeBleData(dataUint8) {
-          const BLE_MAX_WRITE = 244;
+          const BLE_MAX_WRITE = 500; // Tối ưu MTU 517 byte cho BLE 5.0 throughput cao
           for (let offset = 0; offset < dataUint8.length; offset += BLE_MAX_WRITE) {
             const slice = dataUint8.subarray(offset, Math.min(offset + BLE_MAX_WRITE, dataUint8.length));
             if (rxChar.writeValueWithoutResponse) {
@@ -2916,7 +2977,9 @@
             } else {
               await rxChar.writeValue(slice);
             }
-            await new Promise(r => setTimeout(r, 6));
+            if (offset + BLE_MAX_WRITE < dataUint8.length) {
+              await new Promise(r => setTimeout(r, 2));
+            }
           }
         }
 
@@ -2925,24 +2988,33 @@
         const encoder = new TextEncoder();
         let seq = 1;
 
-        // 1. Gửi lệnh CMD_START_TRANSFER (0x02)
+        // 1. Gửi lệnh CMD_START_TRANSFER (0x02) đề xuất chunk size 2048 bytes
         updateFlashModal("Khởi tạo phiên truyền BLE: " + pkg.filename, 25);
         const nameBytes = encoder.encode(pkg.filename);
         const startPayload = new Uint8Array(11 + nameBytes.length);
         const startView = new DataView(startPayload.buffer);
         startView.setUint32(0, pkg.totalSize, true);
         startView.setUint32(4, pkg.fileCrc, true);
-        startView.setUint16(8, 512, true);
+        startView.setUint16(8, 2048, true); // Đề xuất 2048 bytes
         startPayload[10] = nameBytes.length;
         startPayload.set(nameBytes, 11);
 
         const startPkt = buildProtoPacket(0x02, seq++, startPayload);
         await writeBleData(startPkt);
-        await waitForAckFrame(0x82, 3000);
+        const startAck = await waitForAckFrame(0x82, 3000);
 
-        // 2. Gửi từng khối dữ liệu CMD_WRITE_CHUNK (0x03)
-        const CHUNK_SIZE = 490;
+        let CHUNK_SIZE = 2048;
+        if (startAck && startAck.length >= 7) {
+          const agreed = startAck[5] | (startAck[6] << 8);
+          if (agreed >= 256 && agreed <= 4096) {
+            CHUNK_SIZE = agreed;
+          }
+        }
+
+        // 2. Gửi từng khối dữ liệu CMD_WRITE_CHUNK (0x03) với cơ chế Burst Window
         const totalChunks = Math.ceil(pkg.totalSize / CHUNK_SIZE);
+        const WINDOW_SIZE = 4; // Cửa sổ 4 chunks (~8 KB) trước khi chờ xác nhận ACK
+        const startTime = performance.now();
 
         for (let i = 0; i < totalChunks; i++) {
           const offset = i * CHUNK_SIZE;
@@ -2958,12 +3030,22 @@
 
           const chunkPkt = buildProtoPacket(0x03, seq++, chunkPayload);
           await writeBleData(chunkPkt);
-          await waitForAckFrame(0x83, 500);
 
-          if ((i & 1) === 0 || i === totalChunks - 1) {
-            const percent = Math.min(92, Math.round(25 + ((i + 1) / totalChunks) * 65));
-            updateFlashModal(`Đang truyền BLE: ${Math.round(end / 1024)} KB / ${Math.round(pkg.totalSize / 1024)} KB (${i + 1}/${totalChunks})`, percent);
+          // Chờ ACK theo từng cửa sổ (mỗi 4 chunks hoặc ở chunk cuối cùng)
+          const isWindowEnd = ((i + 1) % WINDOW_SIZE === 0) || (i === totalChunks - 1);
+          if (isWindowEnd) {
+            const ack = await waitForAckFrame(0x83, 2000);
+            if (ack && ack.length > 0 && ack[0] !== 0) {
+              throw new Error("ESP32 báo lỗi ghi tại vị trí " + offset + " (mã: " + ack[0] + ")");
+            }
+          } else {
+            await new Promise(r => setTimeout(r, 2));
           }
+
+          const percent = Math.min(92, Math.round(25 + ((i + 1) / totalChunks) * 65));
+          const elapsedSec = (performance.now() - startTime) / 1000;
+          const speedKB = elapsedSec > 0.1 ? Math.round((end / 1024) / elapsedSec) : 0;
+          updateFlashModal(`Đang truyền BLE tốc độ cao: ${Math.round(end / 1024)} KB / ${Math.round(pkg.totalSize / 1024)} KB (~${speedKB} KB/s)`, percent);
         }
 
         // 3. Gửi lệnh CMD_FINISH_TRANSFER (0x04)
@@ -2981,7 +3063,11 @@
         updateFlashModal("Kích hoạt giao diện mới trên màn hình LCD...", 97);
         const switchPkt = buildProtoPacket(0x08, seq++, nameBytes);
         await writeBleData(switchPkt);
-        await waitForAckFrame(0x88, 2000);
+        const switchAck = await waitForAckFrame(0x88, 3000);
+        if (switchAck && switchAck.length > 0 && switchAck[0] !== 0) {
+          throw new Error("ESP32 báo lỗi khi kích hoạt giao diện (mã: " + switchAck[0] + ")");
+        }
+        await new Promise(r => setTimeout(r, 400));
 
         if (txChar && notificationHandler) {
           try { txChar.removeEventListener('characteristicvaluechanged', notificationHandler); } catch (_) {}
