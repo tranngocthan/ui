@@ -1,0 +1,3060 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waveshare 4.3" UI Designer Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Canvas Screen Styles */
+    #lcd-viewport {
+      width: 800px;
+      height: 480px;
+      position: relative;
+      background-color: #0b0f19;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      user-select: none;
+      touch-action: none;
+    }
+
+    /* Selection Box & Resize Handles */
+    .widget-node {
+      position: absolute;
+      cursor: move;
+      box-sizing: border-box;
+      transition: outline 0.15s ease;
+      touch-action: none;
+    }
+    .widget-node.selected {
+      outline: 2px solid #0284c7 !important;
+      outline-offset: 1px;
+    }
+    .resize-handle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background-color: #38bdf8;
+      border: 1px solid #0f172a;
+      border-radius: 2px;
+      display: none;
+      z-index: 50;
+    }
+    .widget-node.selected .resize-handle {
+      display: block;
+    }
+    .handle-nw { top: -4px; left: -4px; cursor: nw-resize; }
+    .handle-ne { top: -4px; right: -4px; cursor: ne-resize; }
+    .handle-se { bottom: -4px; right: -4px; cursor: se-resize; }
+    .handle-sw { bottom: -4px; left: -4px; cursor: sw-resize; }
+
+    /* Enlarged touch-friendly resize handles on mobile & touch devices */
+    @media (pointer: coarse), (max-width: 1023px) {
+      .resize-handle {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background-color: #38bdf8;
+        border: 2px solid #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+      }
+      .handle-nw { top: -11px; left: -11px; }
+      .handle-ne { top: -11px; right: -11px; }
+      .handle-se { bottom: -11px; right: -11px; }
+      .handle-sw { bottom: -11px; left: -11px; }
+    }
+
+    /* Slide up animation for mobile action sheet */
+    @keyframes slideUp {
+      from { transform: translateY(100%); }
+      to { transform: translateY(0); }
+    }
+    .animate-slide-up {
+      animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Canvas Grid Pattern */
+    .canvas-bg-grid {
+      background-size: 20px 20px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col h-screen overflow-hidden">
+
+  <!-- TOP HEADER NAVBAR -->
+  <header class="bg-slate-900 border-b border-slate-800 px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between z-20 shrink-0">
+    <div class="flex items-center space-x-2 sm:space-x-3 overflow-hidden">
+      <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400 font-bold shadow-inner shrink-0 text-xs sm:text-base">
+        WS
+      </div>
+      <div class="truncate">
+        <div class="flex items-center gap-1.5 sm:gap-2">
+          <h1 class="text-xs sm:text-sm font-bold text-white flex items-center gap-1">
+            <span class="truncate">Waveshare UI</span>
+            <span class="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">800×480</span>
+          </h1>
+          <span class="text-slate-600 hidden sm:inline">/</span>
+          <div class="hidden sm:flex items-center gap-1.5 bg-slate-800/90 hover:bg-slate-800 border border-slate-700/70 rounded-md px-2 py-0.5 transition shadow-sm" title="Nhấp để đổi tên dự án (Project Name)">
+            <span class="text-slate-400 text-xs">📁</span>
+            <input id="project-name-input" type="text" value="my_custom_ui" oninput="updateProjectName(this.value)" placeholder="Tên dự án..." class="bg-transparent text-xs font-semibold text-sky-300 w-28 sm:w-36 focus:w-48 focus:outline-none transition-all placeholder-slate-500" title="Tên dự án (được dùng để đặt tên file .json và .uipack)">
+          </div>
+        </div>
+        <p class="text-[10px] sm:text-[11px] text-slate-400 truncate hidden xs:block">Thiết kế & Xuất gói .uipack cho ESP32-S3-Touch-LCD-4.3</p>
+      </div>
+    </div>
+
+    <!-- Desktop Toolbar Controls (lg:flex) -->
+    <div class="hidden lg:flex items-center space-x-2">
+      <!-- Templates -->
+      <select id="template-select" onchange="loadPresetTemplate(this.value)" class="bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-md px-2.5 py-1.5 focus:outline-none focus:border-sky-500">
+        <option value="">⚡ Mẫu giao diện có sẵn...</option>
+        <option value="clock">🕒 Đồng hồ Cyberpunk (Clock)</option>
+        <option value="smarthome">🏠 Nhà thông minh (Smart Home)</option>
+        <option value="dashboard">🚗 Đồng hồ đo xe điện (EV Meter)</option>
+        <option value="industrial">⚙️ Bảng điều khiển công nghiệp</option>
+      </select>
+
+      <!-- Zoom -->
+      <div class="flex items-center bg-slate-800 border border-slate-700 rounded-md overflow-hidden text-xs">
+        <button onclick="setZoom(zoom - 0.1)" class="px-2 py-1.5 hover:bg-slate-700 text-slate-300">-</button>
+        <span id="zoom-label" class="px-2 text-slate-300 font-mono">100%</span>
+        <button onclick="setZoom(zoom + 0.1)" class="px-2 py-1.5 hover:bg-slate-700 text-slate-300">+</button>
+        <button onclick="setZoom(1.0)" class="px-2 py-1.5 border-l border-slate-700 hover:bg-slate-700 text-slate-300" title="Kích thước gốc 1:1">1:1</button>
+        <button onclick="autoFitZoom()" class="px-2 py-1.5 border-l border-slate-700 hover:bg-slate-700 text-sky-400 font-medium" title="Tự động căn vừa màn hình">📐 Fit</button>
+      </div>
+
+      <div class="h-5 w-px bg-slate-800 mx-1"></div>
+
+      <!-- Action Buttons -->
+      <button onclick="togglePreviewMode()" id="btn-preview" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-md border border-slate-700 flex items-center gap-1.5 transition">
+        <span>👁️</span> Xem thử (Live)
+      </button>
+
+      <button onclick="exportJSON()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-md border border-slate-700 flex items-center gap-1.5 transition" title="Lưu toàn bộ dự án (kèm cấu hình giao diện & font chữ tùy biến) ra file .json">
+        <span>💾</span> Lưu JSON
+      </button>
+
+      <label class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-md border border-slate-700 flex items-center gap-1.5 cursor-pointer transition" title="Mở file dự án .json (tự động khôi phục giao diện & toàn bộ font chữ tùy biến)">
+        <span>📂</span> Mở JSON
+        <input type="file" id="file-input" accept=".json" onchange="importJSON(event)" class="hidden">
+      </label>
+
+      <!-- Main Export Button -->
+      <button onclick="exportUIPack()" class="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-md shadow-lg shadow-sky-600/20 flex items-center gap-1.5 transition">
+        <span>📦</span> Xuất gói .uipack
+      </button>
+
+      <!-- USB Serial Section with Baud Rate Selector -->
+      <div class="flex items-center rounded-md bg-slate-800 border border-slate-700 p-0.5 shadow-sm">
+        <select id="usb-baudrate-select" onchange="localStorage.setItem('uipack_usb_baud', this.value)" class="bg-transparent text-slate-300 text-xs px-2 py-1 border-none focus:outline-none cursor-pointer" title="Chọn tốc độ Baud khi nạp qua USB">
+          <option value="921600" class="bg-slate-900 text-slate-200">921,600 baud (Khuyên dùng)</option>
+          <option value="460800" class="bg-slate-900 text-slate-200">460,800 baud</option>
+          <option value="230400" class="bg-slate-900 text-slate-200">230,400 baud</option>
+          <option value="115200" class="bg-slate-900 text-slate-200">115,200 baud (Chuẩn)</option>
+          <option value="1500000" class="bg-slate-900 text-slate-200">1,500,000 baud</option>
+          <option value="2000000" class="bg-slate-900 text-slate-200">2,000,000 baud (Tối đa)</option>
+        </select>
+        <button onclick="flashOverWebSerial()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded flex items-center gap-1.5 transition shadow" title="Nạp trực tiếp qua cổng USB Serial với tốc độ Baud đã chọn">
+          <span>⚡</span> Nạp qua USB
+        </button>
+      </div>
+
+      <!-- Web Bluetooth BLE Direct Sync Button -->
+      <button onclick="syncOverWebBluetooth()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-md shadow-lg shadow-blue-600/20 flex items-center gap-1.5 transition" title="Đồng bộ trực tiếp qua Bluetooth Low Energy (Web Bluetooth NUS)">
+        <span>📶</span> Đồng bộ Bluetooth
+      </button>
+    </div>
+
+    <!-- Mobile Compact Toolbar (< lg) -->
+    <div class="flex lg:hidden items-center space-x-1.5">
+      <!-- Zoom controls for mobile -->
+      <div class="flex items-center bg-slate-800 border border-slate-700 rounded-md overflow-hidden text-xs">
+        <button onclick="setZoom(zoom - 0.1)" class="px-2 py-1 hover:bg-slate-700 text-slate-300">-</button>
+        <span id="zoom-label-mobile" class="px-1.5 text-slate-300 font-mono text-[11px]">100%</span>
+        <button onclick="setZoom(zoom + 0.1)" class="px-2 py-1 hover:bg-slate-700 text-slate-300">+</button>
+        <button onclick="autoFitZoom()" class="px-2 py-1 border-l border-slate-700 hover:bg-slate-700 text-sky-400 text-[11px] font-medium" title="Căn vừa màn hình">📐 Fit</button>
+      </div>
+
+      <!-- Quick Live Preview toggle on mobile -->
+      <button onclick="togglePreviewMode()" id="btn-preview-mobile" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs rounded-md border border-slate-700 flex items-center justify-center transition" title="Xem thử">
+        <span>👁️</span>
+      </button>
+
+      <!-- Quick Action / Menu button on mobile -->
+      <button onclick="openMobileActionsModal()" class="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-md shadow flex items-center gap-1 transition">
+        <span>⚡</span> Nạp & Menu
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN STUDIO WORKSPACE -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- LEFT SIDEBAR: WIDGET PALETTE -->
+    <aside id="palette-sidebar" class="fixed inset-y-0 left-0 z-40 w-72 max-w-[85vw] bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out -translate-x-full lg:translate-x-0 lg:static lg:w-64 lg:z-10 lg:shadow-none">
+      <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Thư viện thành phần (LVGL 9)</h2>
+        <button onclick="closeAllDrawers()" class="lg:hidden text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 text-sm" title="Đóng bảng">✕</button>
+      </div>
+
+      <div class="p-3 overflow-y-auto space-y-2 flex-1">
+        
+        <!-- Widget: Panel -->
+        <button onclick="addWidget('panel')" class="w-full text-left p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 flex items-center gap-3 transition group">
+          <div class="w-8 h-8 rounded-md bg-slate-700/50 flex items-center justify-center text-slate-300 group-hover:text-sky-400 text-base">🔲</div>
+          <div>
+            <div class="text-xs font-medium text-slate-200 group-hover:text-white">Khung chứa (Panel)</div>
+            <div class="text-[10px] text-slate-400">Khối nền bo góc, viền, trong suốt</div>
+          </div>
+        </button>
+
+        <!-- Widget: Digital Clock -->
+        <button onclick="addWidget('digital_clock')" class="w-full text-left p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 flex items-center gap-3 transition group">
+          <div class="w-8 h-8 rounded-md bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 text-base">🕒</div>
+          <div>
+            <div class="text-xs font-medium text-sky-300 group-hover:text-sky-200">Đồng hồ số (1Hz Clock)</div>
+            <div class="text-[10px] text-slate-400">Cập nhật Giờ:Phút:Giây, Ngày/Tháng</div>
+          </div>
+        </button>
+
+        <!-- Widget: Button -->
+        <button onclick="addWidget('button')" class="w-full text-left p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 flex items-center gap-3 transition group">
+          <div class="w-8 h-8 rounded-md bg-slate-700/50 flex items-center justify-center text-slate-300 group-hover:text-sky-400 text-base">🔘</div>
+          <div>
+            <div class="text-xs font-medium text-slate-200 group-hover:text-white">Nút nhấn (Button)</div>
+            <div class="text-[10px] text-slate-400">Nút bấm tương tác chạm cảm ứng</div>
+          </div>
+        </button>
+
+        <!-- Widget: Label -->
+        <button onclick="addWidget('label')" class="w-full text-left p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 flex items-center gap-3 transition group">
+          <div class="w-8 h-8 rounded-md bg-slate-700/50 flex items-center justify-center text-slate-300 group-hover:text-sky-400 text-base">🏷️</div>
+          <div>
+            <div class="text-xs font-medium text-slate-200 group-hover:text-white">Đoạn chữ (Label)</div>
+            <div class="text-[10px] text-slate-400">Tiêu đề, nhãn giá trị cảm biến</div>
+          </div>
+        </button>
+
+        <!-- Widget: Slider -->
+        <button onclick="addWidget('slider')" class="w-full text-left p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 flex items-center gap-3 transition group">
+          <div class="w-8 h-8 rounded-md bg-slate-700/50 flex items-center justify-center text-slate-300 group-hover:text-sky-400 text-base">🎚️</div>
+          <div>
+            <div class="text-xs font-medium text-slate-200 group-hover:text-white">Thanh trượt (Slider)</div>
+            <div class="text-[10px] text-slate-400">Gạt tăng giảm độ sáng, âm lượng</div>
+          </div>
+        </button>
+
+        <!-- Widget: Arc -->
+        <button onclick="addWidget('arc')" class="w-full text-left p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 flex items-center gap-3 transition group">
+          <div class="w-8 h-8 rounded-md bg-slate-700/50 flex items-center justify-center text-slate-300 group-hover:text-sky-400 text-base">⭕</div>
+          <div>
+            <div class="text-xs font-medium text-slate-200 group-hover:text-white">Đồng hồ tròn (Arc)</div>
+            <div class="text-[10px] text-slate-400">Đo vòng cung: Tốc độ, Nhiệt độ, Pin</div>
+          </div>
+        </button>
+
+        <!-- Widget: Image / Icon -->
+        <button onclick="addWidget('image')" class="w-full text-left p-2.5 rounded-lg bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-sky-500/50 flex items-center gap-3 transition group">
+          <div class="w-8 h-8 rounded-md bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 text-base">🖼️</div>
+          <div>
+            <div class="text-xs font-medium text-sky-300 group-hover:text-sky-200">Hình ảnh / Icon (Image)</div>
+            <div class="text-[10px] text-slate-400">Chèn logo, biểu tượng, ảnh PNG/JPG</div>
+          </div>
+        </button>
+
+      </div>
+
+      <!-- Quick Tips Box -->
+      <div class="p-3 bg-slate-900/80 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
+        <div class="font-semibold text-slate-300 flex items-center gap-1">💡 Phím tắt nhanh:</div>
+        <div>• <span class="text-slate-200 font-mono">Delete</span> : Xóa widget đang chọn</div>
+        <div>• <span class="text-slate-200 font-mono">Phím mũi tên</span> : Dịch 1px (Shift + : 10px)</div>
+      </div>
+    </aside>
+
+    <!-- CENTER AREA: VIEWPORT / CANVAS -->
+    <main class="flex-1 bg-slate-950 canvas-bg-grid flex items-center justify-center relative overflow-auto p-2 sm:p-4 lg:p-8" id="canvas-wrapper">
+      
+      <!-- Scale sizer wrapper to perfectly contain scaled 800x480 on mobile & desktop -->
+      <div id="lcd-scale-sizer" class="relative shrink-0 flex items-center justify-center" style="width: 800px; height: 480px;">
+        <!-- 800x480 Physical LCD Boundary Container -->
+        <div id="lcd-transform-container" style="transform: scale(1.0); transform-origin: 0 0; position: absolute; top: 0; left: 0;">
+          <div id="lcd-viewport" onclick="onCanvasClick(event)">
+            <!-- Rendered widgets appear here -->
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- RIGHT SIDEBAR: PROPERTY INSPECTOR -->
+    <aside class="fixed inset-y-0 right-0 z-40 w-80 max-w-[85vw] bg-slate-900 border-l border-slate-800 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out translate-x-full lg:translate-x-0 lg:static lg:w-80 lg:z-10 lg:shadow-none" id="property-panel">
+      
+      <!-- Panel Header -->
+      <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Thuộc tính (Properties)</h2>
+          <span id="selected-type-badge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Chưa chọn</span>
+        </div>
+        <button onclick="closeAllDrawers()" class="lg:hidden text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 text-sm" title="Đóng bảng">✕</button>
+      </div>
+
+      <!-- Inspector Body -->
+      <div class="p-4 overflow-y-auto space-y-4 flex-1 text-xs" id="inspector-content">
+        
+        <!-- Empty State -->
+        <div id="empty-inspector" class="text-center py-16 text-slate-500">
+          <div class="text-3xl mb-2">🖱️</div>
+          <div>Nhấp vào một widget trên màn hình để chỉnh sửa vị trí, màu sắc và thuộc tính.</div>
+        </div>
+
+        <!-- Active Inspector Form -->
+        <div id="active-inspector" class="space-y-4 hidden">
+          
+          <!-- ID & Coordinates -->
+          <div class="space-y-2">
+            <label class="text-[11px] font-semibold text-slate-400 uppercase">Định danh & Kích thước</label>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <span class="text-slate-500 text-[10px]">ID:</span>
+                <input type="text" id="prop-id" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono" onchange="updateSelectedProp('id', this.value)">
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px]">Loại:</span>
+                <input type="text" id="prop-type" disabled class="w-full bg-slate-800/50 border border-slate-800 rounded px-2 py-1 text-slate-500 font-mono">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2">
+              <div>
+                <span class="text-slate-500 text-[10px]">X:</span>
+                <input type="number" id="prop-x" class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('x', parseInt(this.value) || 0, true)" onchange="updateSelectedProp('x', parseInt(this.value) || 0)">
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px]">Y:</span>
+                <input type="number" id="prop-y" class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('y', parseInt(this.value) || 0, true)" onchange="updateSelectedProp('y', parseInt(this.value) || 0)">
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px]">Rộng (W):</span>
+                <input type="number" id="prop-w" class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('w', Math.max(10, parseInt(this.value) || 10), true)" onchange="updateSelectedProp('w', Math.max(10, parseInt(this.value) || 10))">
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px]">Cao (H):</span>
+                <input type="number" id="prop-h" class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('h', Math.max(10, parseInt(this.value) || 10), true)" onchange="updateSelectedProp('h', Math.max(10, parseInt(this.value) || 10))">
+              </div>
+            </div>
+          </div>
+
+          <hr class="border-slate-800">
+
+          <!-- Specific Widget Settings -->
+          <div id="section-specific" class="space-y-2">
+            <!-- Injected dynamically based on type -->
+          </div>
+
+          <hr class="border-slate-800">
+
+          <!-- Styling: Colors, Radius, Borders -->
+          <div class="space-y-2">
+            <label class="text-[11px] font-semibold text-slate-400 uppercase">Màu sắc & Giao diện (Style)</label>
+            
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <span class="text-slate-500 text-[10px]">Màu nền (Bg Color):</span>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                  <input type="color" id="prop-bgcolor-picker" class="w-7 h-7 rounded border border-slate-700 bg-transparent cursor-pointer" oninput="updateColorFromPicker('bg_color', this.value)">
+                  <input type="text" id="prop-bgcolor" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono text-[11px]" onchange="updateSelectedProp('style.bg_color', this.value)">
+                </div>
+              </div>
+
+              <div>
+                <span class="text-slate-500 text-[10px]">Màu chữ (Text Color):</span>
+                <div class="flex items-center gap-1.5 mt-0.5">
+                  <input type="color" id="prop-textcolor-picker" class="w-7 h-7 rounded border border-slate-700 bg-transparent cursor-pointer" oninput="updateColorFromPicker('text_color', this.value)">
+                  <input type="text" id="prop-textcolor" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono text-[11px]" onchange="updateSelectedProp('style.text_color', this.value)">
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <span class="text-slate-500 text-[10px]">Cỡ chữ (Font Size):</span>
+                <input type="number" id="prop-font-size" min="8" max="96" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('style.font_size', Math.max(8, parseInt(this.value) || 16), true)" onchange="updateSelectedProp('style.font_size', Math.max(8, parseInt(this.value) || 16))">
+              </div>
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-slate-500 text-[10px]">Font chữ:</span>
+                  <label class="text-[10px] text-sky-400 hover:text-sky-300 cursor-pointer font-medium" title="Tải font .ttf từ máy tính">
+                    ➕ Thêm font
+                    <input type="file" accept=".ttf,.bin,.woff" onchange="handleFontUpload(event)" class="hidden">
+                  </label>
+                </div>
+                <select id="prop-font-family" class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-slate-200 text-[11px] mt-0.5" onchange="onFontChange(this.value)">
+                  <optgroup label="Font chuẩn (LVGL 9)">
+                    <option value="">Montserrat (Mặc định)</option>
+                  </optgroup>
+                  <optgroup label="Font tôi thêm (Custom Fonts)" id="prop-custom-fonts-optgroup">
+                    <option value="" disabled>Chưa có font tải lên</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <span class="text-slate-500 text-[10px]">Độ mờ nền (Bg Opa 0-255):</span>
+                <input type="number" id="prop-opa" min="0" max="255" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('style.bg_opa', Math.min(255, Math.max(0, parseInt(this.value) || 0)), true)" onchange="updateSelectedProp('style.bg_opa', Math.min(255, Math.max(0, parseInt(this.value) || 0)))">
+              </div>
+
+              <div>
+                <span class="text-slate-500 text-[10px]">Độ mờ chữ (Text Opa 0-255):</span>
+                <input type="number" id="prop-text-opa" min="0" max="255" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('style.text_opa', Math.min(255, Math.max(0, parseInt(this.value) || 0)), true)" onchange="updateSelectedProp('style.text_opa', Math.min(255, Math.max(0, parseInt(this.value) || 0)))">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 pt-1">
+              <div>
+                <span class="text-slate-500 text-[10px]">Bo góc (Radius):</span>
+                <input type="number" id="prop-radius" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('style.radius', Math.max(0, parseInt(this.value) || 0), true)" onchange="updateSelectedProp('style.radius', Math.max(0, parseInt(this.value) || 0))">
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px]">Độ dày viền:</span>
+                <input type="number" id="prop-border-width" min="0" max="20" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono" oninput="updateSelectedProp('style.border_width', Math.max(0, parseInt(this.value) || 0), true)" onchange="updateSelectedProp('style.border_width', Math.max(0, parseInt(this.value) || 0))">
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px]">Màu viền:</span>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <input type="color" id="prop-bordercolor-picker" class="w-6 h-7 rounded border border-slate-700 bg-transparent cursor-pointer shrink-0" oninput="updateColorFromPicker('border_color', this.value)">
+                  <input type="text" id="prop-bordercolor" class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-slate-200 font-mono text-[10px]" onchange="updateSelectedProp('style.border_color', this.value)">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr class="border-slate-800">
+
+          <!-- Delete Action -->
+          <button onclick="deleteSelectedWidget()" class="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded font-medium transition flex items-center justify-center gap-2">
+            <span>🗑️</span> Xóa Widget này
+          </button>
+
+        </div>
+
+      </div>
+
+      <!-- Canvas Global Settings Footer -->
+      <div class="p-3 border-t border-slate-800 bg-slate-900/90 text-xs space-y-2.5">
+        <div class="font-semibold text-slate-300 text-[11px] flex items-center justify-between">
+          <span>⚙️ CÀI ĐẶT MÀN HÌNH CHÍNH (800×480)</span>
+        </div>
+
+        <!-- Canvas Background Color -->
+        <div class="flex justify-between items-center text-slate-400">
+          <span>Màu nền dự phòng:</span>
+          <div class="flex items-center gap-1.5">
+            <input type="color" id="canvas-bg-picker" value="#0b0f19" class="w-5 h-5 rounded border border-slate-700 bg-transparent cursor-pointer" onchange="setCanvasBg(this.value)">
+            <span id="canvas-bg-hex" class="font-mono text-[11px] text-slate-300">#0B0F19</span>
+          </div>
+        </div>
+
+        <!-- Screen Background Image -->
+        <div class="space-y-1.5 pt-1 border-t border-slate-800/80">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-400 text-[11px]">Hình nền toàn màn hình:</span>
+            <span id="screen-bg-status" class="text-[10px] text-slate-500">Chưa có ảnh</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="flex-1 py-1.5 px-2 bg-sky-600 hover:bg-sky-500 text-white rounded cursor-pointer text-[11px] font-medium flex items-center justify-center gap-1.5 transition">
+              <span>🖼️</span> Chọn ảnh nền (800×480)
+              <input type="file" accept="image/*" onchange="handleScreenBgUpload(event)" class="hidden">
+            </label>
+            <button id="btn-remove-screen-bg" type="button" onclick="removeScreenBg()" class="hidden px-2 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-[11px] transition">
+              Xóa
+            </button>
+          </div>
+          <div id="screen-bg-preview-box" class="hidden items-center gap-2 pt-1">
+            <img id="screen-bg-preview" src="" class="w-16 h-10 object-cover rounded border border-slate-700 bg-slate-950" alt="Screen BG">
+            <div class="text-[10px] text-slate-400 truncate flex-1" id="screen-bg-filename">bg.png</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- MOBILE DRAWER BACKDROP -->
+  <div id="mobile-backdrop" onclick="closeAllDrawers()" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 hidden transition-opacity duration-300 opacity-0 lg:hidden"></div>
+
+  <!-- FLOATING MOBILE WIDGET QUICK BAR (Visible when a widget is selected on mobile) -->
+  <div id="mobile-selection-bar" class="fixed bottom-16 inset-x-3 z-20 flex items-center justify-between bg-slate-900/95 border border-sky-500/40 backdrop-blur-md rounded-xl p-2 shadow-2xl transition-all duration-300 transform translate-y-24 opacity-0 pointer-events-none lg:hidden">
+    <div class="flex items-center gap-2 overflow-hidden mr-2">
+      <span class="w-2.5 h-2.5 rounded-full bg-sky-400 shrink-0 animate-pulse"></span>
+      <span id="mobile-selection-name" class="text-xs font-semibold text-sky-200 truncate font-mono">widget</span>
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button onclick="openDrawer('inspector')" class="px-2.5 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow">
+        <span>⚙️</span> Sửa
+      </button>
+      <button onclick="deleteSelectedWidget()" class="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-medium flex items-center gap-1" title="Xóa">
+        <span>🗑️</span>
+      </button>
+      <button onclick="selectedWidgetId=null; renderCanvas(); updateMobileSelectionBar();" class="p-1 text-slate-400 hover:text-white rounded text-sm">
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- MOBILE ACTIONS MODAL (BOTTOM SHEET / DIALOG) -->
+  <div id="mobile-actions-modal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 hidden transition-opacity duration-200 opacity-0">
+    <div class="bg-slate-900 border border-slate-800 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-slide-up sm:animate-none">
+      
+      <!-- Modal Header -->
+      <div class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+        <div class="flex items-center gap-2">
+          <span class="text-base">⚡</span>
+          <h3 class="text-sm font-bold text-white">Nạp & Thao tác dự án</h3>
+        </div>
+        <button onclick="closeMobileActionsModal()" class="text-slate-400 hover:text-white p-1 text-sm rounded hover:bg-slate-800">
+          ✕
+        </button>
+      </div>
+
+      <!-- Modal Body (Scrollable) -->
+      <div class="p-4 overflow-y-auto space-y-4 text-xs">
+        <!-- Project Name input -->
+        <div>
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">📁 Tên dự án (Project Name)</label>
+          <input type="text" id="mobile-project-name-input" value="my_custom_ui" oninput="updateProjectName(this.value)" placeholder="Tên dự án..." class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sky-300 font-semibold focus:outline-none focus:border-sky-500">
+        </div>
+
+        <!-- Templates -->
+        <div>
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">🎨 Mẫu giao diện có sẵn</label>
+          <select id="mobile-template-select" onchange="loadPresetTemplate(this.value); closeMobileActionsModal();" class="w-full bg-slate-800 text-xs text-slate-200 border border-slate-700 rounded-lg p-2.5 focus:outline-none focus:border-sky-500">
+            <option value="">⚡ Chọn mẫu giao diện có sẵn...</option>
+            <option value="clock">🕒 Đồng hồ Cyberpunk (Clock)</option>
+            <option value="smarthome">🏠 Nhà thông minh (Smart Home)</option>
+            <option value="dashboard">🚗 Đồng hồ đo xe điện (EV Meter)</option>
+            <option value="industrial">⚙️ Bảng điều khiển công nghiệp</option>
+          </select>
+        </div>
+
+        <!-- Sync / Flash -->
+        <div class="space-y-2">
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">📶 Đồng bộ & Nạp vào ESP32</label>
+          
+          <button onclick="closeMobileActionsModal(); syncOverWebBluetooth();" class="w-full py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition">
+            <span class="text-base">📶</span>
+            <span>Đồng bộ qua Bluetooth (BLE NUS)</span>
+          </button>
+          <p class="text-[10px] text-slate-400 text-center">Khuyên dùng: truyền không dây trực tiếp từ điện thoại & máy tính</p>
+
+          <div class="bg-slate-800/80 border border-slate-700/80 rounded-lg p-2.5 space-y-2 mt-2">
+            <div class="flex items-center justify-between text-xs text-slate-300">
+              <span class="text-[11px] text-slate-400 font-medium">⚡ Cổng USB Serial:</span>
+              <select id="mobile-usb-baudrate-select" onchange="localStorage.setItem('uipack_usb_baud', this.value); const topBaud=document.getElementById('usb-baudrate-select'); if(topBaud) topBaud.value=this.value;" class="bg-slate-900 text-slate-200 text-xs px-2 py-1 rounded border border-slate-700 focus:outline-none">
+                <option value="921600">921,600 baud</option>
+                <option value="460800">460,800 baud</option>
+                <option value="230400">230,400 baud</option>
+                <option value="115200">115,200 baud</option>
+                <option value="1500000">1,500,000 baud</option>
+                <option value="2000000">2,000,000 baud</option>
+              </select>
+            </div>
+            <button onclick="closeMobileActionsModal(); flashOverWebSerial();" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow flex items-center justify-center gap-2 transition">
+              <span>⚡</span>
+              <span>Nạp trực tiếp qua cổng USB Serial</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Export & Save -->
+        <div class="space-y-2 pt-2 border-t border-slate-800">
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">📦 Xuất file & Lưu trữ</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="closeMobileActionsModal(); exportUIPack();" class="py-2.5 px-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold rounded-lg shadow flex items-center justify-center gap-1.5 transition">
+              <span>📦</span> Xuất .uipack
+            </button>
+            <button onclick="closeMobileActionsModal(); exportJSON();" class="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center justify-center gap-1.5 transition">
+              <span>💾</span> Lưu JSON
+            </button>
+          </div>
+          <label class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer transition">
+            <span>📂</span> Mở file dự án (.json)
+            <input type="file" accept=".json" onchange="closeMobileActionsModal(); importJSON(event);" class="hidden">
+          </label>
+        </div>
+
+        <!-- Preview Live button -->
+        <div class="pt-2 border-t border-slate-800">
+          <button id="btn-preview-modal" onclick="closeMobileActionsModal(); togglePreviewMode();" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg border border-slate-700 flex items-center justify-center gap-1.5 transition">
+            <span>👁️</span> Xem thử (Live Preview)
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="p-3 border-t border-slate-800 bg-slate-900/90 flex justify-end">
+        <button onclick="closeMobileActionsModal()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition">
+          Đóng
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MOBILE BOTTOM NAVIGATION BAR (< lg) -->
+  <nav class="bg-slate-900 border-t border-slate-800 px-3 py-1.5 flex items-center justify-around z-20 lg:hidden shrink-0">
+    <!-- Tab 1: Màn hình (Canvas) -->
+    <button onclick="closeAllDrawers()" class="flex flex-col items-center justify-center py-1 px-2 text-slate-400 hover:text-sky-400 focus:text-sky-400 transition" title="Xem màn hình thiết kế">
+      <span class="text-lg">📱</span>
+      <span class="text-[10px] font-medium mt-0.5">Màn hình</span>
+    </button>
+
+    <!-- Tab 2: Thêm Widget (Palette Drawer) -->
+    <button onclick="openDrawer('palette')" class="flex flex-col items-center justify-center py-1 px-2 text-slate-400 hover:text-sky-400 focus:text-sky-400 transition" title="Mở danh sách thành phần để thêm">
+      <span class="text-lg">➕</span>
+      <span class="text-[10px] font-medium mt-0.5">Thêm</span>
+    </button>
+
+    <!-- Tab 3: Thuộc tính (Inspector Drawer) -->
+    <button onclick="openDrawer('inspector')" class="flex flex-col items-center justify-center py-1 px-2 text-slate-400 hover:text-sky-400 focus:text-sky-400 transition" title="Mở bảng thuộc tính">
+      <span class="text-lg">⚙️</span>
+      <span class="text-[10px] font-medium mt-0.5">Thuộc tính</span>
+    </button>
+
+    <!-- Tab 4: Nạp / Lưu (Mobile Actions Modal) -->
+    <button onclick="openMobileActionsModal()" class="flex flex-col items-center justify-center py-1 px-2 text-sky-400 hover:text-sky-300 transition" title="Nạp BLE / USB, Lưu & Mở dự án">
+      <div class="w-6 h-6 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-xs shadow-inner">
+        ⚡
+      </div>
+      <span class="text-[10px] font-semibold mt-0.5 text-sky-400">Nạp & Menu</span>
+    </button>
+  </nav>
+
+  <!-- DESKTOP STATUS BAR (lg:flex) -->
+  <footer class="hidden lg:flex bg-slate-900 border-t border-slate-800 px-4 py-1.5 items-center justify-between text-xs text-slate-400 z-20 shrink-0">
+    <div class="flex items-center space-x-4">
+      <span class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        Waveshare ESP32-S3 Target (800×480)
+      </span>
+      <span id="widget-count-badge">Tổng số widget: 0</span>
+    </div>
+    <div class="flex items-center space-x-3 text-[11px]">
+      <span id="mouse-pos" class="font-mono text-slate-500">X: 0, Y: 0</span>
+      <span>•</span>
+      <span>Định dạng: UIPK v1.0 Container</span>
+    </div>
+  </footer>
+
+  <!-- CORE JAVASCRIPT APPLICATION LOGIC -->
+  <script>
+    // ==============================================================================
+    // 1. DATA STATE & APP VARIABLES
+    // ==============================================================================
+    let currentManifest = {
+      package: {
+        name: "My Custom UI",
+        version: "1.0.0",
+        author: "Waveshare Designer",
+        target_resolution: { width: 800, height: 480 },
+        default_screen: "screen_main"
+      },
+      assets: [],
+      screens: [
+        {
+          id: "screen_main",
+          bg_color: "0x0B0F19",
+          widgets: []
+        }
+      ]
+    };
+
+    let selectedWidgetId = null;
+    let customFonts = []; // Danh sách font tùy biến người dùng tải lên
+    let zoom = 1.0;
+    let isPreviewMode = false;
+    let isDragging = false;
+    let isResizing = false;
+    let resizeHandle = '';
+    let dragStartX = 0, dragStartY = 0;
+    let initialX = 0, initialY = 0, initialW = 0, initialH = 0;
+    let clockInterval = null;
+
+    // Standard IEEE 802.3 CRC32 Table Generator
+    function makeCRCTable() {
+      let c;
+      let crcTable = [];
+      for(let n = 0; n < 256; n++){
+        c = n;
+        for(let k = 0; k < 8; k++){
+          c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+        }
+        crcTable[n] = c;
+      }
+      return crcTable;
+    }
+    const crcTable = makeCRCTable();
+
+    function crc32(byteArray) {
+      let crc = 0 ^ (-1);
+      for (let i = 0; i < byteArray.length; i++ ) {
+        crc = (crc >>> 8) ^ crcTable[(crc ^ byteArray[i]) & 0xFF];
+      }
+      return (crc ^ (-1)) >>> 0;
+    }
+
+    // Convert hex string e.g. "0x0284C7" or "#0284c7" to RGB and Hex
+    function normalizeHex(colorStr) {
+      if (!colorStr) return "#ffffff";
+      if (colorStr.startsWith("0x") || colorStr.startsWith("0X")) {
+        return "#" + colorStr.slice(2).padStart(6, '0');
+      }
+      if (colorStr.startsWith("#")) return colorStr;
+      return "#" + colorStr;
+    }
+
+    function toEspHex(hexColor) {
+      if (!hexColor) return "0xFFFFFF";
+      if (hexColor.startsWith("#")) {
+        return "0x" + hexColor.slice(1).toUpperCase();
+      }
+      return hexColor;
+    }
+
+    // ==============================================================================
+    // 2. CANVAS RENDERING & DOM BUILDER
+    // ==============================================================================
+    function renderCanvas(skipInspectorRefresh = false) {
+      const viewport = document.getElementById('lcd-viewport');
+      viewport.innerHTML = '';
+      const screen = currentManifest.screens[0];
+      
+      // Set background color
+      viewport.style.backgroundColor = normalizeHex(screen.bg_color);
+      document.getElementById('canvas-bg-hex').innerText = normalizeHex(screen.bg_color).toUpperCase();
+      document.getElementById('canvas-bg-picker').value = normalizeHex(screen.bg_color);
+
+      // Set Screen Background Image (800x480)
+      const bgBox = document.getElementById('screen-bg-preview-box');
+      const bgPreview = document.getElementById('screen-bg-preview');
+      const bgFilename = document.getElementById('screen-bg-filename');
+      const bgStatus = document.getElementById('screen-bg-status');
+      const btnRemoveBg = document.getElementById('btn-remove-screen-bg');
+
+      if (screen.bg_image_data) {
+        viewport.style.backgroundImage = `url(${screen.bg_image_data})`;
+        viewport.style.backgroundSize = '800px 480px';
+        viewport.style.backgroundPosition = 'center';
+        viewport.style.backgroundRepeat = 'no-repeat';
+
+        if (bgBox) { bgBox.classList.remove('hidden'); bgBox.classList.add('flex'); }
+        if (bgPreview) bgPreview.src = screen.bg_image_data;
+        if (bgFilename) bgFilename.innerText = screen.bg_image_name || 'screen_bg.png';
+        if (bgStatus) { bgStatus.innerText = 'Đã chọn'; bgStatus.className = 'text-[10px] text-emerald-400 font-medium'; }
+        if (btnRemoveBg) btnRemoveBg.classList.remove('hidden');
+      } else {
+        viewport.style.backgroundImage = 'none';
+        if (bgBox) { bgBox.classList.add('hidden'); bgBox.classList.remove('flex'); }
+        if (bgStatus) { bgStatus.innerText = 'Chưa có ảnh'; bgStatus.className = 'text-[10px] text-slate-500'; }
+        if (btnRemoveBg) btnRemoveBg.classList.add('hidden');
+      }
+
+      // Render all widgets
+      screen.widgets.forEach(w => {
+        const el = document.createElement('div');
+        el.className = 'widget-node' + (w.id === selectedWidgetId ? ' selected' : '');
+        el.id = 'dom-' + w.id;
+        el.style.left = w.x + 'px';
+        el.style.top = w.y + 'px';
+        el.style.width = w.w + 'px';
+        el.style.height = w.h + 'px';
+
+        // Apply style
+        const st = w.style || {};
+        const bgOpa = st.bg_opa !== undefined ? st.bg_opa : 255;
+        if (st.bg_color) {
+          const hex = normalizeHex(st.bg_color);
+          const r = parseInt(hex.slice(1, 3), 16) || 0;
+          const g = parseInt(hex.slice(3, 5), 16) || 0;
+          const b = parseInt(hex.slice(5, 7), 16) || 0;
+          el.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${(bgOpa / 255).toFixed(3)})`;
+        }
+        if (st.radius) el.style.borderRadius = st.radius + 'px';
+        if (st.border_width) {
+          el.style.border = `${st.border_width}px solid ${normalizeHex(st.border_color || '#334155')}`;
+        }
+        if (st.font_family) {
+          el.style.fontFamily = `"${st.font_family}", sans-serif`;
+        }
+
+        // Widget-specific inner HTML
+        renderWidgetContent(el, w);
+
+        // Add 4 resize handles
+        ['nw', 'ne', 'se', 'sw'].forEach(pos => {
+          const handle = document.createElement('div');
+          handle.className = `resize-handle handle-${pos}`;
+          handle.dataset.handle = pos;
+          el.appendChild(handle);
+        });
+
+        // Mouse & Touch events for Dragging & Selection
+        el.addEventListener('mousedown', (e) => onWidgetStart(e, w));
+        el.addEventListener('touchstart', (e) => onWidgetStart(e, w), { passive: false });
+
+        viewport.appendChild(el);
+      });
+
+      document.getElementById('widget-count-badge').innerText = `Tổng số widget: ${screen.widgets.length}`;
+      if (!skipInspectorRefresh) {
+        updatePropertyPanel();
+      }
+      updateMobileSelectionBar();
+    }
+
+    function formatStrftimePreview(fmt) {
+      const now = new Date();
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const daysFull = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const daysShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const h24 = now.getHours();
+      const h12 = (h24 % 12) || 12;
+      return (fmt || '%H:%M:%S')
+        .replace(/%H/g, pad2(h24))
+        .replace(/%I/g, pad2(h12))
+        .replace(/%M/g, pad2(now.getMinutes()))
+        .replace(/%S/g, pad2(now.getSeconds()))
+        .replace(/%p/g, h24 >= 12 ? 'PM' : 'AM')
+        .replace(/%d/g, pad2(now.getDate()))
+        .replace(/%m/g, pad2(now.getMonth() + 1))
+        .replace(/%Y/g, String(now.getFullYear()))
+        .replace(/%y/g, String(now.getFullYear()).slice(-2))
+        .replace(/%A/g, daysFull[now.getDay()])
+        .replace(/%a/g, daysShort[now.getDay()]);
+    }
+
+    function renderWidgetContent(el, w) {
+      const props = w.properties || {};
+      const st = w.style || {};
+      const customFontFamily = st.font_family ? `font-family: '${st.font_family}', sans-serif;` : '';
+      const textOpa = st.text_opa !== undefined ? st.text_opa : 255;
+      const textOpaStyle = `opacity: ${(textOpa / 255).toFixed(3)};`;
+
+      if (w.type === 'panel') {
+        el.style.backgroundImage = props.image_data ? `url(${props.image_data})` : 'none';
+        el.style.backgroundSize = props.image_fit || 'cover';
+        el.style.backgroundPosition = 'center';
+        el.style.backgroundRepeat = 'no-repeat';
+        if (props.text) {
+          const fontSize = st.font_size || 12;
+          el.innerHTML = `<div class="p-2 font-semibold" style="color: ${normalizeHex(st.text_color || '#fff')}; font-size: ${fontSize}px; ${textOpaStyle} ${customFontFamily}">${props.text}</div>`;
+        } else {
+          el.innerHTML = '';
+        }
+      } else if (w.type === 'label') {
+        const textColor = normalizeHex(st.text_color || '#e2e8f0');
+        const fontSize = st.font_size || 16;
+        const align = st.text_align || 'left';
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start');
+
+        let displayTxt = props.text || 'Nhãn tiêu đề';
+        if (props.text_bind) {
+          if (props.text_bind === 'system.free_heap') {
+            displayTxt = (props.format || 'RAM: %u KB').replace('%u', '204');
+          } else if (props.text_bind === 'system.wifi_status') {
+            displayTxt = (props.format || 'WiFi: %s').replace('%s', 'Đã kết nối');
+          } else if (props.text_bind.startsWith('system.time') || props.text_bind.startsWith('system.date') || props.text_bind.startsWith('system.weekday') || props.text_bind === 'system.custom_time') {
+            displayTxt = formatStrftimePreview(props.format || '%H:%M:%S');
+          }
+        }
+        el.innerHTML = `<span style="color: ${textColor}; font-size: ${fontSize}px; text-align: ${align}; ${textOpaStyle} ${customFontFamily}" class="font-medium px-2 w-full">${displayTxt}</span>`;
+      } else if (w.type === 'button') {
+        const textColor = normalizeHex(st.text_color || '#ffffff');
+        const fontSize = st.font_size || 14;
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.style.cursor = isPreviewMode ? 'pointer' : 'move';
+        el.innerHTML = `<span style="color: ${textColor}; font-size: ${fontSize}px; font-weight: 600; ${textOpaStyle} ${customFontFamily}" class="select-none tracking-wide">${props.text || 'Nút bấm'}</span>`;
+        if (isPreviewMode) {
+          el.classList.add('active:scale-95', 'transition-transform');
+        }
+      } else if (w.type === 'digital_clock') {
+        const timeColor = normalizeHex(st.text_color_time || '#00f0ff');
+        const dateColor = normalizeHex(st.text_color_date || '#cbd5e1');
+        const fontSize = st.font_size || 52;
+        
+        // Live time formatted
+        const timeStr = formatStrftimePreview(props.time_format || '%H:%M:%S');
+        const dateStr = formatStrftimePreview(props.date_format || '%A, %d/%m/%Y');
+
+        el.style.display = 'flex';
+        el.style.flexDirection = 'column';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.innerHTML = `
+          <div style="color: ${timeColor}; font-size: ${fontSize}px; line-height: 1; ${textOpaStyle} ${customFontFamily}" class="font-mono font-bold tracking-wider">${timeStr}</div>
+          <div style="color: ${dateColor}; font-size: 14px; margin-top: 6px; ${textOpaStyle} ${customFontFamily}" class="font-medium">${dateStr}</div>
+        `;
+      } else if (w.type === 'slider') {
+        const val = props.value !== undefined ? props.value : 50;
+        const color = normalizeHex(st.bg_color || '#0284c7');
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.padding = '0 12px';
+        el.innerHTML = `
+          <div class="w-full bg-slate-700/60 h-3 rounded-full overflow-hidden relative">
+            <div style="width: ${val}%; background-color: ${color};" class="h-full rounded-full"></div>
+          </div>
+        `;
+      } else if (w.type === 'arc') {
+        const val = props.value !== undefined ? props.value : 65;
+        const color = normalizeHex(st.color || '#38bdf8');
+        const fontSize = st.font_size || 14;
+        el.style.display = 'flex';
+        el.style.flexDirection = 'column';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.innerHTML = `
+          <div class="relative w-24 h-24 flex items-center justify-center">
+            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+              <path class="text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path style="stroke: ${color};" stroke-dasharray="${val}, 100" stroke-linecap="round" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <div class="absolute font-mono font-bold text-lg text-white" style="${textOpaStyle}">${val}%</div>
+          </div>
+          ${props.text ? `<div class="text-[11px] text-slate-300 font-semibold mt-1 tracking-wider text-center" style="font-size: ${fontSize}px; ${textOpaStyle} ${customFontFamily}">${props.text}</div>` : ''}
+        `;
+      } else if (w.type === 'image') {
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.style.overflow = 'hidden';
+        if (props.image_data) {
+          el.innerHTML = `<img src="${props.image_data}" style="width: 100%; height: 100%; object-fit: ${props.image_fit || 'contain'}; pointer-events: none;" alt="image">`;
+        } else if (props.icon) {
+          const sz = Math.min(w.w, w.h) * 0.7;
+          el.innerHTML = `<div style="font-size: ${sz}px; line-height: 1; user-select: none;">${props.icon}</div>`;
+        } else {
+          el.innerHTML = `<div class="text-slate-500 text-center text-xs p-2 flex flex-col items-center justify-center"><span>🖼️</span><span>Chưa có ảnh</span></div>`;
+        }
+      }
+    }
+
+    // ==============================================================================
+    // 3. RESPONSIVE MOBILE DRAWER, SELECTION BAR & MODAL CONTROLLERS
+    // ==============================================================================
+    function openDrawer(type) {
+      const backdrop = document.getElementById('mobile-backdrop');
+      const palette = document.getElementById('palette-sidebar');
+      const inspector = document.getElementById('property-panel');
+
+      if (type === 'palette') {
+        if (palette) palette.classList.remove('-translate-x-full');
+        if (inspector) inspector.classList.add('translate-x-full');
+      } else if (type === 'inspector') {
+        if (inspector) inspector.classList.remove('translate-x-full');
+        if (palette) palette.classList.add('-translate-x-full');
+      }
+
+      if (backdrop) {
+        backdrop.classList.remove('hidden');
+        requestAnimationFrame(() => {
+          backdrop.classList.remove('opacity-0');
+          backdrop.classList.add('opacity-100');
+        });
+      }
+    }
+
+    function closeAllDrawers() {
+      const backdrop = document.getElementById('mobile-backdrop');
+      const palette = document.getElementById('palette-sidebar');
+      const inspector = document.getElementById('property-panel');
+
+      if (palette) palette.classList.add('-translate-x-full');
+      if (inspector) inspector.classList.add('translate-x-full');
+
+      if (backdrop) {
+        backdrop.classList.remove('opacity-100');
+        backdrop.classList.add('opacity-0');
+        setTimeout(() => {
+          backdrop.classList.add('hidden');
+        }, 300);
+      }
+    }
+
+    function openMobileActionsModal() {
+      const modal = document.getElementById('mobile-actions-modal');
+      if (!modal) return;
+      const nameInput = document.getElementById('project-name-input');
+      const mobName = document.getElementById('mobile-project-name-input');
+      if (nameInput && mobName) mobName.value = nameInput.value;
+      const baudTop = document.getElementById('usb-baudrate-select');
+      const baudMob = document.getElementById('mobile-usb-baudrate-select');
+      if (baudTop && baudMob) baudMob.value = baudTop.value;
+
+      modal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        modal.classList.remove('opacity-0');
+        modal.classList.add('opacity-100');
+      });
+    }
+
+    function closeMobileActionsModal() {
+      const modal = document.getElementById('mobile-actions-modal');
+      if (!modal) return;
+      modal.classList.remove('opacity-100');
+      modal.classList.add('opacity-0');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 200);
+    }
+
+    function updateMobileSelectionBar() {
+      const bar = document.getElementById('mobile-selection-bar');
+      const nameLabel = document.getElementById('mobile-selection-name');
+      if (!bar) return;
+      if (selectedWidgetId && window.innerWidth < 1024) {
+        const w = currentManifest.screens[0].widgets.find(x => x.id === selectedWidgetId);
+        if (nameLabel && w) {
+          nameLabel.innerText = `${w.type.toUpperCase()}: ${w.id}`;
+        }
+        bar.classList.remove('translate-y-24', 'opacity-0', 'pointer-events-none');
+        bar.classList.add('translate-y-0', 'opacity-100');
+      } else {
+        bar.classList.add('translate-y-24', 'opacity-0', 'pointer-events-none');
+        bar.classList.remove('translate-y-0', 'opacity-100');
+      }
+    }
+
+    // ==============================================================================
+    // 3B. SELECTION, TOUCH/MOUSE DRAG & RESIZE
+    // ==============================================================================
+    function getClientCoords(e) {
+      if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      } else if (e.changedTouches && e.changedTouches.length > 0) {
+        return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
+    }
+
+    function onCanvasClick(e) {
+      if (e.target.id === 'lcd-viewport' || e.target.id === 'canvas-wrapper' || e.target.id === 'lcd-transform-container' || e.target.id === 'lcd-scale-sizer') {
+        selectedWidgetId = null;
+        renderCanvas();
+        updateMobileSelectionBar();
+      }
+    }
+
+    function onWidgetStart(e, widget) {
+      if (isPreviewMode) return;
+      e.stopPropagation();
+
+      selectedWidgetId = widget.id;
+      renderCanvas();
+      updateMobileSelectionBar();
+
+      const coords = getClientCoords(e);
+      const target = e.target;
+
+      if (target.classList && target.classList.contains('resize-handle')) {
+        isResizing = true;
+        resizeHandle = target.dataset.handle;
+      } else {
+        isDragging = true;
+      }
+
+      dragStartX = coords.x;
+      dragStartY = coords.y;
+      initialX = widget.x;
+      initialY = widget.y;
+      initialW = widget.w;
+      initialH = widget.h;
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onEnd);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onEnd);
+      window.addEventListener('touchcancel', onEnd);
+    }
+
+    function onWidgetMouseDown(e, widget) {
+      onWidgetStart(e, widget);
+    }
+
+    function onMove(e) {
+      if (!isDragging && !isResizing) return;
+      if (e.cancelable) e.preventDefault();
+
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget) return;
+
+      const coords = getClientCoords(e);
+      const dx = Math.round((coords.x - dragStartX) / zoom);
+      const dy = Math.round((coords.y - dragStartY) / zoom);
+
+      if (isDragging) {
+        widget.x = Math.max(0, Math.min(800 - widget.w, initialX + dx));
+        widget.y = Math.max(0, Math.min(480 - widget.h, initialY + dy));
+      } else if (isResizing) {
+        if (resizeHandle === 'se') {
+          widget.w = Math.max(20, initialW + dx);
+          widget.h = Math.max(20, initialH + dy);
+        } else if (resizeHandle === 'sw') {
+          widget.x = initialX + dx;
+          widget.w = Math.max(20, initialW - dx);
+          widget.h = Math.max(20, initialH + dy);
+        } else if (resizeHandle === 'ne') {
+          widget.y = initialY + dy;
+          widget.w = Math.max(20, initialW + dx);
+          widget.h = Math.max(20, initialH - dy);
+        } else if (resizeHandle === 'nw') {
+          widget.x = initialX + dx;
+          widget.y = initialY + dy;
+          widget.w = Math.max(20, initialW - dx);
+          widget.h = Math.max(20, initialH - dy);
+        }
+      }
+
+      renderCanvas(true);
+    }
+
+    function onMouseMove(e) {
+      onMove(e);
+    }
+
+    function onEnd() {
+      if (isDragging || isResizing) {
+        isDragging = false;
+        isResizing = false;
+        updatePropertyPanel();
+        updateMobileSelectionBar();
+      }
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+      window.removeEventListener('touchcancel', onEnd);
+    }
+
+    function onMouseUp() {
+      onEnd();
+    }
+
+    // Keyboard controls (Delete / Arrows)
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement.tagName === 'INPUT') return;
+      if (!selectedWidgetId) return;
+
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget) return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        deleteSelectedWidget();
+      } else if (e.key === 'ArrowLeft') {
+        widget.x = Math.max(0, widget.x - (e.shiftKey ? 10 : 1));
+        renderCanvas();
+      } else if (e.key === 'ArrowRight') {
+        widget.x = Math.min(800 - widget.w, widget.x + (e.shiftKey ? 10 : 1));
+        renderCanvas();
+      } else if (e.key === 'ArrowUp') {
+        widget.y = Math.max(0, widget.y - (e.shiftKey ? 10 : 1));
+        renderCanvas();
+      } else if (e.key === 'ArrowDown') {
+        widget.y = Math.min(480 - widget.h, widget.y + (e.shiftKey ? 10 : 1));
+        renderCanvas();
+      }
+    });
+
+    // Mouse coordinates tracker
+    document.getElementById('lcd-viewport').addEventListener('mousemove', (e) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = Math.round((e.clientX - rect.left) / zoom);
+      const y = Math.round((e.clientY - rect.top) / zoom);
+      document.getElementById('mouse-pos').innerText = `X: ${x}, Y: ${y}`;
+    });
+
+    // ==============================================================================
+    // 4. ADD / DELETE WIDGETS
+    // ==============================================================================
+    let widgetCounter = 1;
+
+    function addWidget(type) {
+      const id = `${type}_${widgetCounter++}`;
+      let newW = {
+        id: id,
+        type: type,
+        x: 100, y: 100, w: 200, h: 60,
+        style: {
+          bg_color: "0x1E293B",
+          radius: 8,
+          border_width: 0,
+          bg_opa: 255
+        },
+        properties: {}
+      };
+
+      if (type === 'digital_clock') {
+        newW.w = 540; newW.h = 160;
+        newW.x = 130; newW.y = 80;
+        newW.style.bg_color = "0x111827";
+        newW.style.radius = 16;
+        newW.style.border_width = 2;
+        newW.style.border_color = "0x334155";
+        newW.style.text_color_time = "0x00F0FF";
+        newW.style.text_color_date = "0xE2E8F0";
+        newW.properties = {
+          time_format: "%H:%M:%S",
+          date_format: "%A, %d/%m/%Y",
+          show_seconds: true,
+          show_date: true
+        };
+      } else if (type === 'button') {
+        newW.w = 200; newW.h = 52;
+        newW.style.bg_color = "0x0284C7";
+        newW.style.radius = 10;
+        newW.style.text_color = "0xFFFFFF";
+        newW.properties = { text: "NÚT BẤM" };
+      } else if (type === 'label') {
+        newW.w = 240; newW.h = 40;
+        newW.style.bg_color = "0x000000";
+        newW.style.bg_opa = 0;
+        newW.style.text_color = "0x38BDF8";
+        newW.style.font_size = 20;
+        newW.properties = { text: "TIÊU ĐỀ NỘI DUNG" };
+      } else if (type === 'slider') {
+        newW.w = 300; newW.h = 36;
+        newW.style.bg_color = "0x0284C7";
+        newW.properties = { value: 60, min: 0, max: 100 };
+      } else if (type === 'arc') {
+        newW.w = 140; newW.h = 140;
+        newW.style.bg_color = "0x1E293B";
+        newW.style.radius = 16;
+        newW.style.color = "0x38BDF8";
+        newW.properties = { value: 75, text: "TỐC ĐỘ" };
+      } else if (type === 'panel') {
+        newW.w = 760; newW.h = 60;
+        newW.x = 20; newW.y = 10;
+        newW.style.bg_color = "0x0F172A";
+        newW.style.radius = 10;
+        newW.properties = { text: "HEADER THANH ĐIỀU KHIỂN", image_fit: "cover" };
+      } else if (type === 'image') {
+        newW.w = 120; newW.h = 120;
+        newW.x = 340; newW.y = 180;
+        newW.style.bg_color = "0x000000";
+        newW.style.bg_opa = 0;
+        newW.properties = { icon: "💡", image_fit: "contain" };
+      }
+
+      currentManifest.screens[0].widgets.push(newW);
+      selectedWidgetId = id;
+      renderCanvas();
+      updateMobileSelectionBar();
+      if (window.innerWidth < 1024) {
+        closeAllDrawers();
+      }
+    }
+
+    function deleteSelectedWidget() {
+      if (!selectedWidgetId) return;
+      currentManifest.screens[0].widgets = currentManifest.screens[0].widgets.filter(w => w.id !== selectedWidgetId);
+      selectedWidgetId = null;
+      renderCanvas();
+      updateMobileSelectionBar();
+    }
+
+    // ==============================================================================
+    // 5. PROPERTY INSPECTOR MANAGER
+    // ==============================================================================
+    function renderProjectOverview() {
+      const emptyBox = document.getElementById('empty-inspector');
+      if (!emptyBox) return;
+      const projName = currentManifest.package?.name || "my_custom_ui";
+
+      let fontsHtml = '';
+      if (customFonts.length === 0) {
+        fontsHtml = '<div class="text-slate-500 text-[11px] italic py-1">Chưa có font chữ nào được thêm.</div>';
+      } else {
+        fontsHtml = customFonts.map((f, idx) => `
+          <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded px-2 py-1.5 text-[11px]">
+            <div class="truncate mr-2">
+              <span class="text-sky-300 font-medium">${f.name}</span>
+              <span class="text-slate-500 text-[10px] block">${Math.round(f.size / 1024)} KB (${f.type === 0x06 ? 'TTF' : 'BIN'})</span>
+            </div>
+            <button onclick="removeCustomFont(${idx})" class="text-red-400 hover:text-red-300 p-1 text-xs" title="Xóa font">✕</button>
+          </div>
+        `).join('');
+      }
+
+      emptyBox.className = "space-y-4 text-xs text-left";
+      emptyBox.innerHTML = `
+        <div class="space-y-2">
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">📁 Thông tin dự án</label>
+          <div>
+            <span class="text-slate-500 text-[10px]">Tên Project:</span>
+            <input type="text" value="${projName}" oninput="updateProjectName(this.value); const top=document.getElementById('project-name-input'); if(top) top.value=this.value;" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-sky-300 font-medium mt-0.5 focus:outline-none focus:border-sky-500">
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-slate-400 text-[11px]">
+            <div class="bg-slate-900 border border-slate-800 rounded p-2">
+              <span class="text-slate-500 text-[10px] block">Màn hình:</span>
+              <span class="text-slate-200 font-mono">800 × 480 px</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded p-2">
+              <span class="text-slate-500 text-[10px] block">Định dạng nạp:</span>
+              <span class="text-emerald-400 font-mono">RGB565 (.uipack)</span>
+            </div>
+          </div>
+        </div>
+
+        <hr class="border-slate-800">
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">🔤 Font chữ tùy biến (${customFonts.length})</label>
+            <label class="text-[10px] text-sky-400 hover:text-sky-300 cursor-pointer font-medium bg-sky-950/60 border border-sky-800/60 px-2 py-0.5 rounded transition" title="Tải font .ttf từ máy tính">
+              ➕ Thêm Font
+              <input type="file" accept=".ttf,.bin,.woff" onchange="handleFontUpload(event)" class="hidden">
+            </label>
+          </div>
+          <div class="space-y-1.5 max-h-48 overflow-y-auto">
+            ${fontsHtml}
+          </div>
+          <p class="text-[10px] text-slate-500 italic">💡 Khi bấm "Lưu JSON", toàn bộ font chữ trên sẽ được mã hóa và lưu trọn vẹn vào file dự án.</p>
+        </div>
+
+        <div class="p-2.5 rounded bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400">
+          👉 Nhấp vào bất kỳ thành phần nào trên màn hình để xem và chỉnh sửa thuộc tính chi tiết.
+        </div>
+      `;
+    }
+
+    function removeCustomFont(index) {
+      if (index >= 0 && index < customFonts.length) {
+        customFonts.splice(index, 1);
+        updateFontDropdown();
+        renderCanvas();
+        updatePropertyPanel();
+      }
+    }
+
+    function updatePropertyPanel() {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      const emptyBox = document.getElementById('empty-inspector');
+      const activeBox = document.getElementById('active-inspector');
+      const badge = document.getElementById('selected-type-badge');
+
+      if (!widget) {
+        emptyBox.classList.remove('hidden');
+        activeBox.classList.add('hidden');
+        badge.innerText = 'DỰ ÁN';
+        renderProjectOverview();
+        return;
+      }
+
+      emptyBox.classList.add('hidden');
+      activeBox.classList.remove('hidden');
+      badge.innerText = widget.type.toUpperCase();
+
+      document.getElementById('prop-id').value = widget.id;
+      document.getElementById('prop-type').value = widget.type;
+      document.getElementById('prop-x').value = widget.x;
+      document.getElementById('prop-y').value = widget.y;
+      document.getElementById('prop-w').value = widget.w;
+      document.getElementById('prop-h').value = widget.h;
+
+      // Style properties
+      const st = widget.style || {};
+      const bgColor = normalizeHex(st.bg_color || '#1e293b');
+      const textColor = normalizeHex(st.text_color || '#ffffff');
+      const borderColor = normalizeHex(st.border_color || '#334155');
+
+      document.getElementById('prop-bgcolor').value = toEspHex(bgColor);
+      document.getElementById('prop-bgcolor-picker').value = bgColor;
+
+      document.getElementById('prop-textcolor').value = toEspHex(textColor);
+      document.getElementById('prop-textcolor-picker').value = textColor;
+
+      document.getElementById('prop-radius').value = st.radius !== undefined ? st.radius : 0;
+      document.getElementById('prop-opa').value = st.bg_opa !== undefined ? st.bg_opa : 255;
+      const textOpaInput = document.getElementById('prop-text-opa');
+      if (textOpaInput) textOpaInput.value = st.text_opa !== undefined ? st.text_opa : 255;
+      document.getElementById('prop-border-width').value = st.border_width !== undefined ? st.border_width : 0;
+
+      document.getElementById('prop-bordercolor').value = toEspHex(borderColor);
+      document.getElementById('prop-bordercolor-picker').value = borderColor;
+
+      // Font size & Font Family
+      document.getElementById('prop-font-size').value = st.font_size || (widget.type === 'digital_clock' ? 48 : 16);
+      updateFontDropdown(st.font_family || "");
+
+      // Render type-specific properties
+      renderSpecificInspector(widget);
+    }
+
+    function updateFontDropdown(selectedFont) {
+      const optgroup = document.getElementById('prop-custom-fonts-optgroup');
+      if (!optgroup) return;
+      if (customFonts.length === 0) {
+        optgroup.innerHTML = '<option value="" disabled>Chưa có font tải lên</option>';
+      } else {
+        optgroup.innerHTML = customFonts.map(f => 
+          `<option value="${f.name}" ${f.name === selectedFont ? 'selected' : ''}>${f.name} (${f.type === 0x06 ? 'TTF' : 'BIN'})</option>`
+        ).join('');
+      }
+      if (selectedFont !== undefined && document.getElementById('prop-font-family')) {
+        document.getElementById('prop-font-family').value = selectedFont;
+      }
+    }
+
+    function onFontChange(fontName) {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget) return;
+      if (!widget.style) widget.style = {};
+
+      if (!fontName) {
+        delete widget.style.font_family;
+        delete widget.style.font_asset_id;
+      } else {
+        const found = customFonts.find(f => f.name === fontName);
+        widget.style.font_family = fontName;
+        if (found) {
+          widget.style.font_asset_id = found.id;
+        }
+      }
+      renderCanvas();
+    }
+
+    function handleFontUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const fontBytes = new Uint8Array(e.target.result);
+        const fontName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_");
+        const fontId = 201 + customFonts.length;
+        const isTtf = file.name.toLowerCase().endsWith('.ttf');
+
+        // Nạp font vào trình duyệt qua FontFace API để hiển thị trực tiếp WYSIWYG
+        try {
+          const fontFace = new FontFace(fontName, e.target.result);
+          fontFace.load().then(loadedFace => {
+            document.fonts.add(loadedFace);
+            console.log("Đã đăng ký Font vào DOM:", fontName);
+            renderCanvas();
+          });
+        } catch (err) {
+          console.warn("Không thể tải font vào browser preview:", err);
+        }
+
+        const newFont = {
+          id: fontId,
+          name: fontName,
+          filename: file.name,
+          bytes: fontBytes,
+          type: isTtf ? 0x06 : 0x05, // 0x06: TinyTTF, 0x05: LVGL Font BIN
+          size: fontBytes.length,
+          crc: crc32(fontBytes)
+        };
+
+        customFonts.push(newFont);
+
+        // Tự động gán font này cho widget đang chọn (nếu có)
+        const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+        if (widget) {
+          if (!widget.style) widget.style = {};
+          widget.style.font_family = fontName;
+          widget.style.font_asset_id = fontId;
+        }
+
+        alert(`Đã thêm font thành công: "${fontName}" (${Math.round(fontBytes.length / 1024)} KB)!\nFont đã được áp dụng và sẵn sàng đóng gói vào tệp .uipack.`);
+        updatePropertyPanel();
+        renderCanvas();
+      };
+      reader.readAsArrayBuffer(file);
+      event.target.value = '';
+    }
+
+    function handleScreenBgUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        currentManifest.screens[0].bg_image_data = e.target.result;
+        currentManifest.screens[0].bg_image_name = file.name;
+        renderCanvas();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeScreenBg() {
+      delete currentManifest.screens[0].bg_image_data;
+      delete currentManifest.screens[0].bg_image_name;
+      delete currentManifest.screens[0].bg_asset_id;
+      renderCanvas();
+    }
+
+    function renderSpecificInspector(w) {
+      const box = document.getElementById('section-specific');
+      box.innerHTML = '';
+      const props = w.properties || {};
+
+      if (w.type === 'panel') {
+        box.innerHTML = `
+          <div class="space-y-3">
+            <div>
+              <span class="text-slate-500 text-[10px]">Tiêu đề thanh Panel (tùy chọn):</span>
+              <input type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 mt-1" value="${props.text || ''}" onchange="updateSelectedProp('properties.text', this.value)">
+            </div>
+            
+            <div class="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700 space-y-2">
+              <span class="text-sky-400 font-semibold text-[11px] block">🖼️ HÌNH NỀN CHO PANEL (BACKGROUND IMAGE):</span>
+              
+              <div class="flex items-center gap-2">
+                <label class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded cursor-pointer text-xs font-medium flex items-center gap-1.5 transition">
+                  <span>📁</span> Tải ảnh từ máy (PNG / JPG)
+                  <input type="file" accept="image/*" onchange="handleImageUpload(event, 'panel')" class="hidden">
+                </label>
+                ${props.image_data ? `
+                  <button type="button" onclick="removePanelImage()" class="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs transition">
+                    Xóa ảnh
+                  </button>
+                ` : ''}
+              </div>
+
+              ${props.image_data ? `
+                <div class="flex items-center gap-2 pt-1">
+                  <img src="${props.image_data}" class="w-14 h-10 object-cover rounded border border-slate-700 bg-slate-900" alt="preview">
+                  <div class="flex-1">
+                    <span class="text-slate-400 text-[10px] block">Chế độ hiển thị:</span>
+                    <select class="w-full bg-slate-800 text-slate-200 rounded border border-slate-700 px-2 py-1 text-xs mt-0.5" onchange="updateSelectedProp('properties.image_fit', this.value)">
+                      <option value="cover" ${props.image_fit === 'cover' ? 'selected' : ''}>Cover (Phủ đầy khung)</option>
+                      <option value="contain" ${props.image_fit === 'contain' ? 'selected' : ''}>Contain (Vừa vặn trong khung)</option>
+                      <option value="100% 100%" ${props.image_fit === '100% 100%' ? 'selected' : ''}>Stretch (Kéo dãn toàn bộ)</option>
+                    </select>
+                  </div>
+                </div>
+              ` : `
+                <div class="text-[10px] text-slate-400">Chọn ảnh PNG hoặc JPG từ máy tính của bạn để làm hình nền cho khung Panel này.</div>
+              `}
+            </div>
+          </div>
+        `;
+      } else if (w.type === 'image') {
+        box.innerHTML = `
+          <div class="space-y-3">
+            <div class="p-2.5 rounded-lg bg-slate-800/60 border border-slate-700 space-y-2">
+              <span class="text-sky-400 font-semibold text-[11px] block">🖼️ TẢI HÌNH ẢNH HOẶC CHỌN BIỂU TƯỢNG:</span>
+              
+              <div class="flex items-center gap-2">
+                <label class="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded cursor-pointer text-xs font-medium flex items-center gap-1.5 transition">
+                  <span>📁</span> Chọn ảnh từ máy tính
+                  <input type="file" accept="image/*" onchange="handleImageUpload(event, 'image')" class="hidden">
+                </label>
+                ${props.image_data ? `
+                  <button type="button" onclick="removeWidgetImage()" class="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded text-xs transition">
+                    Xóa ảnh
+                  </button>
+                ` : ''}
+              </div>
+
+              ${props.image_data ? `
+                <div class="flex items-center gap-2 pt-1">
+                  <img src="${props.image_data}" class="w-14 h-14 object-contain rounded border border-slate-700 bg-slate-900" alt="preview">
+                  <div class="flex-1">
+                    <span class="text-slate-400 text-[10px] block">Căn chỉnh:</span>
+                    <select class="w-full bg-slate-800 text-slate-200 rounded border border-slate-700 px-2 py-1 text-xs mt-0.5" onchange="updateSelectedProp('properties.image_fit', this.value)">
+                      <option value="contain" ${props.image_fit === 'contain' ? 'selected' : ''}>Contain (Vừa khung)</option>
+                      <option value="cover" ${props.image_fit === 'cover' ? 'selected' : ''}>Cover (Đầy khung)</option>
+                    </select>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+
+            <div>
+              <span class="text-slate-400 text-[10px] font-semibold block mb-1">Hoặc chọn nhanh Icon IoT / Smart Home:</span>
+              <div class="grid grid-cols-6 gap-1 text-base">
+                ${['💡', '❄️', '🌡️', '🔋', '⚡', '🚗', '📶', '⚙️', '🎵', '🔒', '🏠', '☕', '⚠️', '🔥', '💧', '🕒', '🔔', '📻', '🎮', '🌙', '☀️', '📊', '📈', '🛡️'].map(ic => 
+                  `<button type="button" class="p-1.5 bg-slate-800 hover:bg-sky-600/30 rounded border border-slate-700 text-center transition hover:border-sky-500" onclick="setQuickIcon('${ic}')">${ic}</button>`
+                ).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (w.type === 'button') {
+        box.innerHTML = `
+          <div>
+            <span class="text-slate-500 text-[10px]">Nội dung văn bản nút bấm:</span>
+            <input type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 mt-1" value="${props.text || ''}" oninput="updateSelectedProp('properties.text', this.value, true)" onchange="updateSelectedProp('properties.text', this.value)">
+          </div>
+        `;
+      } else if (w.type === 'label') {
+        const bindVal = props.text_bind || '';
+        const isTimeBind = bindVal.startsWith('system.time') || bindVal.startsWith('system.date') || bindVal.startsWith('system.weekday') || bindVal === 'system.custom_time';
+        const curAlign = (w.style && w.style.text_align) ? w.style.text_align : 'left';
+        box.innerHTML = `
+          <div class="space-y-2.5">
+            <div>
+              <span class="text-slate-500 text-[10px]">Nội dung văn bản tĩnh:</span>
+              <input type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 mt-1" value="${props.text || ''}" oninput="updateSelectedProp('properties.text', this.value, true)" onchange="updateSelectedProp('properties.text', this.value)">
+            </div>
+
+            <div>
+              <span class="text-slate-500 text-[10px]">Căn lề chữ (Text Align):</span>
+              <select class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs mt-1" onchange="updateSelectedProp('style.text_align', this.value)">
+                <option value="left" ${curAlign === 'left' ? 'selected' : ''}>⬅️ Căn trái (Left)</option>
+                <option value="center" ${curAlign === 'center' ? 'selected' : ''}>↔️ Căn giữa (Center)</option>
+                <option value="right" ${curAlign === 'right' ? 'selected' : ''}>➡️ Căn phải (Right)</option>
+              </select>
+            </div>
+
+            <div class="p-2.5 rounded-lg bg-sky-950/40 border border-sky-800/60 space-y-2">
+              <span class="text-sky-400 font-semibold text-[11px] block">🕒 GÁN THỜI GIAN / DỮ LIỆU ĐỘNG VÀO LABEL:</span>
+              <select class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs" onchange="onLabelBindChange(this.value)">
+                <option value="" ${bindVal === '' ? 'selected' : ''}>📝 Văn bản tĩnh (Không gán)</option>
+                <option value="system.time" ${bindVal === 'system.time' ? 'selected' : ''}>🕒 Giờ:Phút:Giây (%H:%M:%S)</option>
+                <option value="system.time_hm" ${bindVal === 'system.time_hm' ? 'selected' : ''}>⏰ Giờ:Phút (%H:%M)</option>
+                <option value="system.date" ${bindVal === 'system.date' ? 'selected' : ''}>📅 Ngày/Tháng/Năm (%d/%m/%Y)</option>
+                <option value="system.weekday_date" ${bindVal === 'system.weekday_date' ? 'selected' : ''}>📆 Thứ, Ngày/Tháng/Năm (%A, %d/%m/%Y)</option>
+                <option value="system.datetime" ${bindVal === 'system.datetime' ? 'selected' : ''}>🕒 Giờ & Ngày (%H:%M:%S - %d/%m/%Y)</option>
+                <option value="system.custom_time" ${bindVal === 'system.custom_time' ? 'selected' : ''}>⚙️ Định dạng thời gian tùy chỉnh (strftime)</option>
+                <option value="system.free_heap" ${bindVal === 'system.free_heap' ? 'selected' : ''}>💾 Bộ nhớ RAM trống (RAM: %u KB)</option>
+                <option value="system.wifi_status" ${bindVal === 'system.wifi_status' ? 'selected' : ''}>📶 Trạng thái Wi-Fi (WiFi: %s)</option>
+              </select>
+
+              ${isTimeBind ? `
+                <div class="space-y-1.5 pt-1">
+                  <span class="text-slate-400 text-[10px] block">Định dạng thời gian (strftime):</span>
+                  <input type="text" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sky-300 font-mono text-xs" value="${props.format || '%H:%M:%S'}" oninput="updateSelectedProp('properties.format', this.value, true)" onchange="updateSelectedProp('properties.format', this.value)">
+                  <div class="flex flex-wrap gap-1 pt-0.5">
+                    <button type="button" onclick="setLabelTimeFormat('%H:%M:%S')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-sky-600/40 rounded border border-slate-700 text-[10px] font-mono text-slate-300">Giờ:Phút:Giây</button>
+                    <button type="button" onclick="setLabelTimeFormat('%H:%M')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-sky-600/40 rounded border border-slate-700 text-[10px] font-mono text-slate-300">Giờ:Phút</button>
+                    <button type="button" onclick="setLabelTimeFormat('%S')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-sky-600/40 rounded border border-slate-700 text-[10px] font-mono text-slate-300">Giây (%S)</button>
+                    <button type="button" onclick="setLabelTimeFormat('%d/%m/%Y')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-sky-600/40 rounded border border-slate-700 text-[10px] font-mono text-slate-300">Ngày/Tháng/Năm</button>
+                    <button type="button" onclick="setLabelTimeFormat('%A, %d/%m/%Y')" class="px-1.5 py-0.5 bg-slate-800 hover:bg-sky-600/40 rounded border border-slate-700 text-[10px] font-mono text-slate-300">Thứ + Ngày</button>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      } else if (w.type === 'digital_clock') {
+        box.innerHTML = `
+          <div class="space-y-2">
+            <div>
+              <span class="text-slate-500 text-[10px]">Định dạng Giờ:</span>
+              <input type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono mt-1" value="${props.time_format || '%H:%M:%S'}" onchange="updateSelectedProp('properties.time_format', this.value)">
+            </div>
+            <div>
+              <span class="text-slate-500 text-[10px]">Định dạng Ngày:</span>
+              <input type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono mt-1" value="${props.date_format || '%A, %d/%m/%Y'}" onchange="updateSelectedProp('properties.date_format', this.value)">
+            </div>
+          </div>
+        `;
+      } else if (w.type === 'slider' || w.type === 'arc') {
+        box.innerHTML = `
+          <div class="space-y-2">
+            <div>
+              <span class="text-slate-500 text-[10px]">Giá trị ban đầu (0-100):</span>
+              <input type="number" min="0" max="100" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 font-mono mt-1" value="${props.value || 50}" onchange="updateSelectedProp('properties.value', parseInt(this.value))">
+            </div>
+            ${w.type === 'arc' ? `
+              <div>
+                <span class="text-slate-500 text-[10px]">Nhãn mô tả dưới vòng:</span>
+                <input type="text" class="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-200 mt-1" value="${props.text || ''}" onchange="updateSelectedProp('properties.text', this.value)">
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+    }
+
+    function framesCountEstimate(bytes) {
+      return (bytes / 1024).toFixed(0) + ' KB';
+    }
+
+    function handleImageUpload(e, targetType) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const dataUrl = evt.target.result;
+        const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+        if (!widget) return;
+        if (!widget.properties) widget.properties = {};
+        widget.properties.image_data = dataUrl;
+        widget.properties.image_name = file.name;
+        widget.properties.image_type = file.type.includes('gif') ? 'image_gif' : (file.type.includes('png') ? 'image_png' : 'image_jpg');
+        if (file.type.includes('gif')) {
+          // Kiểm tra kích thước khung hình GIF để cảnh báo tối ưu mượt mà cho ESP32
+          const img = new Image();
+          img.onload = function() {
+            if (img.width > 480 || img.height > 320) {
+              alert(`⚠️ Ảnh GIF "${file.name}" có độ phân giải gốc khá lớn (${img.width}x${img.height} px, ${framesCountEstimate(file.size)}).\n\n` +
+                    `💡 MẸO TRÁNH GIẬT MÀN HÌNH:\n` +
+                    `Màn hình ESP32 hiển thị mượt nhất khi ảnh GIF có độ phân giải gốc từ 200x200 đến 360x270 px.\n` +
+                    `Bạn có thể dùng file "anh-gif-3-min-optimized.gif" (320x240) đã được tối ưu sẵn trong thư mục Downloads để chạy cực mượt!`);
+            }
+          };
+          img.src = dataUrl;
+        }
+        if (targetType === 'image') {
+          widget.properties.icon = null;
+        }
+        renderCanvas();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removePanelImage() {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget || !widget.properties) return;
+      delete widget.properties.image_data;
+      delete widget.properties.image_name;
+      renderCanvas();
+    }
+
+    function removeWidgetImage() {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget || !widget.properties) return;
+      delete widget.properties.image_data;
+      delete widget.properties.image_name;
+      widget.properties.icon = '🖼️';
+      renderCanvas();
+    }
+
+    function setQuickIcon(iconChar) {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget) return;
+      if (!widget.properties) widget.properties = {};
+      delete widget.properties.image_data;
+      delete widget.properties.image_name;
+      widget.properties.icon = iconChar;
+      renderCanvas();
+    }
+
+    function onLabelBindChange(bindType) {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget) return;
+      if (!widget.properties) widget.properties = {};
+
+      if (!bindType) {
+        delete widget.properties.text_bind;
+        delete widget.properties.format;
+      } else {
+        widget.properties.text_bind = bindType;
+        if (bindType === 'system.time') {
+          widget.properties.format = '%H:%M:%S';
+          widget.properties.text = formatStrftimePreview('%H:%M:%S');
+        } else if (bindType === 'system.time_hm') {
+          widget.properties.format = '%H:%M';
+          widget.properties.text = formatStrftimePreview('%H:%M');
+        } else if (bindType === 'system.date') {
+          widget.properties.format = '%d/%m/%Y';
+          widget.properties.text = formatStrftimePreview('%d/%m/%Y');
+        } else if (bindType === 'system.weekday_date') {
+          widget.properties.format = '%A, %d/%m/%Y';
+          widget.properties.text = formatStrftimePreview('%A, %d/%m/%Y');
+        } else if (bindType === 'system.datetime') {
+          widget.properties.format = '%H:%M:%S - %d/%m/%Y';
+          widget.properties.text = formatStrftimePreview('%H:%M:%S - %d/%m/%Y');
+        } else if (bindType === 'system.custom_time') {
+          if (!widget.properties.format) widget.properties.format = '%H:%M:%S';
+          widget.properties.text = formatStrftimePreview(widget.properties.format);
+        } else if (bindType === 'system.free_heap') {
+          widget.properties.format = 'RAM: %u KB';
+          widget.properties.text = 'RAM: 204 KB';
+        } else if (bindType === 'system.wifi_status') {
+          widget.properties.format = 'WiFi: %s';
+          widget.properties.text = 'WiFi: Đã kết nối';
+        }
+      }
+      renderCanvas();
+    }
+
+    function setLabelTimeFormat(fmt) {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget) return;
+      if (!widget.properties) widget.properties = {};
+      widget.properties.text_bind = 'system.custom_time';
+      widget.properties.format = fmt;
+      widget.properties.text = formatStrftimePreview(fmt);
+      renderCanvas();
+    }
+
+    function updateSelectedProp(path, value, skipInspectorRefresh = false) {
+      const widget = currentManifest.screens[0].widgets.find(w => w.id === selectedWidgetId);
+      if (!widget) return;
+
+      const parts = path.split('.');
+      if (parts.length === 1) {
+        widget[parts[0]] = value;
+      } else if (parts.length === 2) {
+        if (!widget[parts[0]]) widget[parts[0]] = {};
+        widget[parts[0]][parts[1]] = value;
+      }
+      renderCanvas(skipInspectorRefresh);
+    }
+
+    function updateColorFromPicker(field, hex) {
+      updateSelectedProp('style.' + field, toEspHex(hex));
+    }
+
+    function setCanvasBg(hex) {
+      currentManifest.screens[0].bg_color = toEspHex(hex);
+      renderCanvas();
+    }
+
+    function setZoom(val) {
+      zoom = Math.max(0.35, Math.min(1.8, val));
+      const container = document.getElementById('lcd-transform-container');
+      if (container) {
+        container.style.transform = `scale(${zoom.toFixed(2)})`;
+        container.style.transformOrigin = '0 0';
+      }
+      const sizer = document.getElementById('lcd-scale-sizer');
+      if (sizer) {
+        sizer.style.width = `${Math.round(800 * zoom)}px`;
+        sizer.style.height = `${Math.round(480 * zoom)}px`;
+      }
+      const lbl = document.getElementById('zoom-label');
+      if (lbl) lbl.innerText = `${Math.round(zoom * 100)}%`;
+      const lblMob = document.getElementById('zoom-label-mobile');
+      if (lblMob) lblMob.innerText = `${Math.round(zoom * 100)}%`;
+    }
+
+    function autoFitZoom() {
+      const wrapper = document.getElementById('canvas-wrapper');
+      if (!wrapper) return;
+      const pad = window.innerWidth < 640 ? 16 : 32;
+      const availW = Math.max(100, wrapper.clientWidth - pad);
+      const availH = Math.max(100, wrapper.clientHeight - pad);
+
+      const scaleW = availW / 800;
+      const scaleH = availH / 480;
+      let fit = Math.min(scaleW, scaleH);
+
+      if (window.innerWidth >= 1024) {
+        fit = Math.min(1.0, fit);
+      }
+      fit = Math.max(0.35, Math.min(1.5, fit));
+      fit = Math.round(fit * 100) / 100;
+      setZoom(fit);
+    }
+
+    function togglePreviewMode() {
+      isPreviewMode = !isPreviewMode;
+      const btn = document.getElementById('btn-preview');
+      const btnMob = document.getElementById('btn-preview-mobile');
+      const btnModal = document.getElementById('btn-preview-modal');
+
+      const updateBtn = (b) => {
+        if (!b) return;
+        if (isPreviewMode) {
+          b.classList.add('bg-amber-600', 'border-amber-500', 'text-white');
+          b.innerHTML = '<span>⏹️</span> Thoát xem thử';
+        } else {
+          b.classList.remove('bg-amber-600', 'border-amber-500', 'text-white');
+          b.innerHTML = '<span>👁️</span> Xem thử (Live)';
+        }
+      };
+
+      updateBtn(btn);
+      updateBtn(btnMob);
+      updateBtn(btnModal);
+
+      if (isPreviewMode) {
+        selectedWidgetId = null;
+        clockInterval = setInterval(renderCanvas, 1000);
+      } else {
+        if (clockInterval) clearInterval(clockInterval);
+      }
+      renderCanvas();
+      updateMobileSelectionBar();
+    }
+
+    // ==============================================================================
+    // 6. PRESET TEMPLATES
+    // ==============================================================================
+    function loadPresetTemplate(type) {
+      if (!type) return;
+      if (type === 'clock') {
+        currentManifest.screens[0] = {
+          id: "screen_main",
+          bg_color: "0x0B0F19",
+          widgets: [
+            {
+              id: "header",
+              type: "panel",
+              x: 0, y: 0, w: 800, h: 54,
+              style: { bg_color: "0x111827", radius: 0, border_width: 0, bg_opa: 240 },
+              properties: { text: "WAVESHARE ESP32-S3 CLOCK DASHBOARD" }
+            },
+            {
+              id: "clock_main",
+              type: "digital_clock",
+              x: 100, y: 110, w: 600, h: 180,
+              style: { bg_color: "0x1E293B", radius: 20, border_width: 2, border_color: "0x334155", text_color_time: "0x00F0FF", text_color_date: "0xE2E8F0" },
+              properties: { time_format: "%H:%M:%S", date_format: "%A, %d/%m/%Y" }
+            },
+            {
+              id: "btn_alarm",
+              type: "button",
+              x: 180, y: 340, w: 200, h: 54,
+              style: { bg_color: "0x0284C7", radius: 12, text_color: "0xFFFFFF" },
+              properties: { text: "BÁO THỨC" }
+            },
+            {
+              id: "btn_settings",
+              type: "button",
+              x: 420, y: 340, w: 200, h: 54,
+              style: { bg_color: "0x334155", radius: 12, text_color: "0xFFFFFF" },
+              properties: { text: "CÀI ĐẶT" }
+            }
+          ]
+        };
+      } else if (type === 'smarthome') {
+        currentManifest.screens[0] = {
+          id: "screen_main",
+          bg_color: "0x090D16",
+          widgets: [
+            {
+              id: "top_bar",
+              type: "panel",
+              x: 20, y: 15, w: 760, h: 50,
+              style: { bg_color: "0x131D31", radius: 12 },
+              properties: { text: "SMART HOME CONTROLLER - PHÒNG KHÁCH" }
+            },
+            {
+              id: "btn_light1",
+              type: "button",
+              x: 40, y: 90, w: 220, h: 100,
+              style: { bg_color: "0xF59E0B", radius: 16, text_color: "0x000000" },
+              properties: { text: "💡 ĐÈN TRẦN: BẬT" }
+            },
+            {
+              id: "btn_ac",
+              type: "button",
+              x: 290, y: 90, w: 220, h: 100,
+              style: { bg_color: "0x0284C7", radius: 16, text_color: "0xFFFFFF" },
+              properties: { text: "❄️ MÁY LẠNH: 24°C" }
+            },
+            {
+              id: "arc_temp",
+              type: "arc",
+              x: 540, y: 90, w: 220, h: 170,
+              style: { bg_color: "0x1E293B", radius: 16, color: "0x10B981" },
+              properties: { value: 26, text: "NHIỆT ĐỘ PHÒNG (°C)" }
+            },
+            {
+              id: "slider_dimmer",
+              type: "slider",
+              x: 40, y: 220, w: 470, h: 40,
+              style: { bg_color: "0xF59E0B" },
+              properties: { value: 80 }
+            },
+            {
+              id: "clock_mini",
+              type: "digital_clock",
+              x: 40, y: 290, w: 720, h: 150,
+              style: { bg_color: "0x131D31", radius: 16, text_color_time: "0x38BDF8", text_color_date: "0x94A3B8" },
+              properties: { time_format: "%H:%M:%S", date_format: "%A, %d/%m/%Y" }
+            }
+          ]
+        };
+      } else if (type === 'dashboard') {
+        currentManifest.screens[0] = {
+          id: "screen_main",
+          bg_color: "0x05070D",
+          widgets: [
+            {
+              id: "arc_speed",
+              type: "arc",
+              x: 60, y: 60, w: 320, h: 320,
+              style: { bg_color: "0x0E1322", radius: 30, color: "0x00F0FF" },
+              properties: { value: 68, text: "TỐC ĐỘ (KM/H)" }
+            },
+            {
+              id: "arc_battery",
+              type: "arc",
+              x: 420, y: 60, w: 320, h: 320,
+              style: { bg_color: "0x0E1322", radius: 30, color: "0x10B981" },
+              properties: { value: 84, text: "DUNG LƯỢNG PIN (%)" }
+            },
+            {
+              id: "trip_lbl",
+              type: "label",
+              x: 280, y: 410, w: 240, h: 40,
+              style: { bg_color: "0x000000", bg_opa: 0, text_color: "0x94A3B8", font_size: 18 },
+              properties: { text: "TRIP A: 142.8 KM  •  ECO MODE" }
+            }
+          ]
+        };
+      } else if (type === 'industrial') {
+        currentManifest.screens[0] = {
+          id: "screen_main",
+          bg_color: "0x111827",
+          widgets: [
+            {
+              id: "status_panel",
+              type: "panel",
+              x: 20, y: 20, w: 760, h: 60,
+              style: { bg_color: "0x1F2937", radius: 8, border_width: 2, border_color: "0x374151" },
+              properties: { text: "HỆ THỐNG GIÁM SÁT ÁP SUẤT LÒ HƠI #03" }
+            },
+            {
+              id: "arc_psi",
+              type: "arc",
+              x: 60, y: 110, w: 200, h: 200,
+              style: { bg_color: "0x1F2937", radius: 12, color: "0xEF4444" },
+              properties: { value: 85, text: "ÁP SUẤT: 8.5 BAR" }
+            },
+            {
+              id: "arc_water",
+              type: "arc",
+              x: 300, y: 110, w: 200, h: 200,
+              style: { bg_color: "0x1F2937", radius: 12, color: "0x3B82F6" },
+              properties: { value: 92, text: "MỨC NƯỚC: 92%" }
+            },
+            {
+              id: "arc_temp",
+              type: "arc",
+              x: 540, y: 110, w: 200, h: 200,
+              style: { bg_color: "0x1F2937", radius: 12, color: "0xF59E0B" },
+              properties: { value: 65, text: "NHIỆT: 145°C" }
+            },
+            {
+              id: "btn_stop",
+              type: "button",
+              x: 260, y: 360, w: 280, h: 70,
+              style: { bg_color: "0xDC2626", radius: 14, text_color: "0xFFFFFF" },
+              properties: { text: "🛑 DỪNG KHẨN CẤP (E-STOP)" }
+            }
+          ]
+        };
+      }
+      renderCanvas();
+    }
+
+    // ==============================================================================
+    // 7. EXPORT / IMPORT JSON (LƯU & KHÔI PHỤC DỰ ÁN KÈM THEO CẢ FONT CHỮ)
+    // ==============================================================================
+    function updateProjectName(val) {
+      const cleanName = (val || "").trim() || "my_custom_ui";
+      if (!currentManifest.package) currentManifest.package = {};
+      currentManifest.package.name = cleanName;
+      try { localStorage.setItem('uipack_project_name', cleanName); } catch (_) {}
+      const top = document.getElementById('project-name-input');
+      if (top && top.value !== val) top.value = val;
+      const mob = document.getElementById('mobile-project-name-input');
+      if (mob && mob.value !== val) mob.value = val;
+    }
+
+    function uint8ArrayToBase64(bytes) {
+      if (!bytes || bytes.length === 0) return "";
+      let binary = '';
+      const len = bytes.byteLength;
+      const chunkSize = 0x8000; // 32KB chunk tránh tràn call stack
+      for (let i = 0; i < len; i += chunkSize) {
+        const sub = bytes.subarray(i, Math.min(i + chunkSize, len));
+        binary += String.fromCharCode.apply(null, sub);
+      }
+      return window.btoa(binary);
+    }
+
+    function base64ToUint8Array(base64) {
+      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+      const binaryString = window.atob(cleanBase64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function exportJSON() {
+      const nameInput = document.getElementById('project-name-input');
+      const projName = (nameInput?.value || currentManifest.package?.name || "my_custom_ui").trim() || "my_custom_ui";
+      if (!currentManifest.package) currentManifest.package = {};
+      currentManifest.package.name = projName;
+
+      // Đóng gói font chữ tùy biến thành Base64 để lưu đầy đủ vào tệp JSON
+      const serializedFonts = customFonts.map(f => ({
+        id: f.id,
+        name: f.name,
+        filename: f.filename,
+        type: f.type, // 0x06 (TTF) hoặc 0x05 (BIN)
+        size: f.size,
+        crc: f.crc,
+        base64: uint8ArrayToBase64(f.bytes)
+      }));
+
+      const exportPayload = {
+        format: "waveshare_uipack_project_v1",
+        project_name: projName,
+        saved_at: new Date().toISOString(),
+        manifest: currentManifest,
+        custom_fonts: serializedFonts
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
+      const safeFilename = projName.toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'my_project';
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `${safeFilename}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    async function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+
+          // 1. Khôi phục Manifest
+          if (parsed.manifest && parsed.manifest.screens) {
+            currentManifest = parsed.manifest;
+          } else if (parsed.screens) {
+            // Định dạng manifest trực tiếp (legacy)
+            currentManifest = parsed;
+          } else {
+            throw new Error("Tệp JSON không chứa cấu trúc màn hình hợp lệ (thiếu screens).");
+          }
+
+          // 2. Khôi phục tên dự án
+          const projName = parsed.project_name || currentManifest.package?.name || file.name.replace(/\.json$/i, "");
+          if (!currentManifest.package) currentManifest.package = {};
+          currentManifest.package.name = projName;
+          const nameInput = document.getElementById('project-name-input');
+          if (nameInput) nameInput.value = projName;
+          const mobName = document.getElementById('mobile-project-name-input');
+          if (mobName) mobName.value = projName;
+          try { localStorage.setItem('uipack_project_name', projName); } catch (_) {}
+
+          // 3. Khôi phục Fonts tùy biến từ file JSON
+          let restoredFontCount = 0;
+          if (Array.isArray(parsed.custom_fonts) && parsed.custom_fonts.length > 0) {
+            for (const f of parsed.custom_fonts) {
+              if (!f || !f.name || !f.base64) continue;
+              
+              const existingIdx = customFonts.findIndex(cf => cf.name === f.name);
+              const fontBytes = base64ToUint8Array(f.base64);
+
+              // Đăng ký font vào trình duyệt qua FontFace API để hiển thị WYSIWYG
+              try {
+                const fontFace = new FontFace(f.name, fontBytes.buffer);
+                const loadedFace = await fontFace.load();
+                document.fonts.add(loadedFace);
+                console.log("Đã khôi phục font từ file JSON:", f.name);
+              } catch (fontErr) {
+                console.warn("Không thể tải font vào browser preview:", f.name, fontErr);
+              }
+
+              const restoredFont = {
+                id: f.id || (201 + customFonts.length),
+                name: f.name,
+                filename: f.filename || `${f.name}.ttf`,
+                bytes: fontBytes,
+                type: f.type || 0x06,
+                size: fontBytes.length,
+                crc: f.crc || crc32(fontBytes)
+              };
+
+              if (existingIdx >= 0) {
+                customFonts[existingIdx] = restoredFont;
+              } else {
+                customFonts.push(restoredFont);
+              }
+              restoredFontCount++;
+            }
+          }
+
+          // Cập nhật giao diện Designer
+          updateFontDropdown();
+          updateScreenList();
+          renderCanvas();
+          updatePropertyPanel();
+
+          alert(`Đã mở dự án thành công!\n• Tên dự án: "${projName}"\n• Số màn hình: ${currentManifest.screens.length}\n• Font chữ đã nạp: ${restoredFontCount} font`);
+        } catch (err) {
+          alert("Lỗi khi mở tệp JSON: " + err.message);
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ==============================================================================
+    // 8. CLIENT-SIDE DIRECT .UIPACK BINARY PACKER (CHUYỂN ĐỔI RGB565 CHUẨN ESP32-S3)
+    // ==============================================================================
+    function imageToRgb565(dataUrl, width, height, opts = {}) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+
+          const outerBg = opts.outerBgColor || '#0b0f19';
+          const innerBg = opts.bgColor || outerBg;
+          const radius = Math.max(0, Math.min(Math.floor(Math.min(width, height) / 2), Number(opts.radius) || 0));
+          const borderWidth = Math.max(0, Number(opts.borderWidth) || 0);
+          const borderColor = opts.borderColor || '#334155';
+          const fit = opts.fit || 'stretch';
+
+          // 1. Nền ngoài góc bo (để góc bo hòa vào màu nền màn hình ngay cả khi không dùng mask)
+          ctx.fillStyle = outerBg;
+          ctx.fillRect(0, 0, width, height);
+
+          // 2. Cắt vùng bo góc (Rounded Rect Clip)
+          ctx.save();
+          if (radius > 0 && ctx.roundRect) {
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, radius);
+            ctx.clip();
+          }
+
+          // 3. Nền bên trong khung ảnh (hỗ trợ ảnh PNG trong suốt hoặc chế độ contain)
+          ctx.fillStyle = innerBg;
+          ctx.fillRect(0, 0, width, height);
+
+          // 4. Vẽ ảnh theo chế độ fit (cover / contain / stretch)
+          const iw = img.naturalWidth || img.width || width;
+          const ih = img.naturalHeight || img.height || height;
+          if (fit === 'cover' && iw > 0 && ih > 0) {
+            const scale = Math.max(width / iw, height / ih);
+            const dw = iw * scale;
+            const dh = ih * scale;
+            ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
+          } else if (fit === 'contain' && iw > 0 && ih > 0) {
+            const scale = Math.min(width / iw, height / ih);
+            const dw = iw * scale;
+            const dh = ih * scale;
+            ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
+          } else {
+            ctx.drawImage(img, 0, 0, width, height);
+          }
+          ctx.restore();
+
+          // 5. Vẽ viền bo góc (Border) khử răng cưa trực tiếp lên ảnh nếu có borderWidth > 0
+          if (borderWidth > 0) {
+            ctx.save();
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = borderWidth;
+            const halfB = borderWidth / 2;
+            const bRadius = Math.max(0, radius - halfB);
+            ctx.beginPath();
+            if (bRadius > 0 && ctx.roundRect) {
+              ctx.roundRect(halfB, halfB, Math.max(1, width - borderWidth), Math.max(1, height - borderWidth), bRadius);
+            } else {
+              ctx.rect(halfB, halfB, Math.max(1, width - borderWidth), Math.max(1, height - borderWidth));
+            }
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          const imgData = ctx.getImageData(0, 0, width, height).data;
+          const totalPixels = width * height;
+          const rawBytes = new Uint8Array(totalPixels * 2);
+          let byteIdx = 0;
+          for (let i = 0; i < imgData.length; i += 4) {
+            const r = imgData[i];
+            const g = imgData[i + 1];
+            const b = imgData[i + 2];
+            // Định dạng màu 16-bit RGB565 Little-Endian cho ESP32-S3 (5 bit Đỏ, 6 bit Xanh lá, 5 bit Xanh dương)
+            const rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+            rawBytes[byteIdx++] = rgb565 & 0xFF;
+            rawBytes[byteIdx++] = (rgb565 >> 8) & 0xFF;
+          }
+          resolve(rawBytes);
+        };
+        img.onerror = () => {
+          resolve(new Uint8Array(width * height * 2));
+        };
+        img.src = dataUrl;
+      });
+    }
+
+    async function generateUiPackData() {
+      const HEADER_SIZE = 64;
+      const ALIGNMENT = 64;
+      function align64(val) {
+        const rem = val % ALIGNMENT;
+        return rem === 0 ? val : val + (ALIGNMENT - rem);
+      }
+
+      const assetsToPack = [];
+      let nextAssetId = 101;
+      const nameInput = document.getElementById('project-name-input');
+      const currentProjName = (nameInput?.value || currentManifest.package?.name || "my_custom_ui").trim() || "my_custom_ui";
+      if (!currentManifest.package) currentManifest.package = {};
+      currentManifest.package.name = currentProjName;
+
+      const cleanManifest = JSON.parse(JSON.stringify(currentManifest));
+      cleanManifest.package.name = currentProjName;
+      cleanManifest.assets = [];
+      cleanManifest.package.build_epoch = Math.floor(Date.now() / 1000);
+
+      function extractGifBytesIfGif(dataUrl, fileNameHint = '') {
+        if (!dataUrl || typeof dataUrl !== 'string') return null;
+        const isGifMime = dataUrl.startsWith('data:image/gif') || fileNameHint.toLowerCase().endsWith('.gif');
+        const b64 = dataUrl.split(',')[1] || '';
+        if (!b64) return null;
+        if (!isGifMime && !b64.startsWith('R0lGOD')) return null; // "R0lGOD" là base64 của "GIF8"
+        const bin = atob(b64);
+        if (bin.length < 10) return null;
+        const gifBytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) gifBytes[i] = bin.charCodeAt(i);
+        if (gifBytes[0] !== 0x47 || gifBytes[1] !== 0x49 || gifBytes[2] !== 0x46) return null; // 'G','I','F'
+        const gW = gifBytes[6] | (gifBytes[7] << 8);
+        const gH = gifBytes[8] | (gifBytes[9] << 8);
+        return { bytes: gifBytes, width: gW || 120, height: gH || 120 };
+      }
+
+      // 1. Xử lý ảnh nền toàn màn hình 800x480 (nếu có - hỗ trợ cả ảnh GIF động và ảnh tĩnh)
+      if (cleanManifest.screens[0].bg_image_data) {
+        const bgId = 100; // ID cố định cho hình nền chính
+        const bgGif = extractGifBytesIfGif(cleanManifest.screens[0].bg_image_data, cleanManifest.screens[0].bg_image_name || '');
+        if (bgGif) {
+          assetsToPack.push({
+            id: bgId,
+            name: "screen_bg.gif",
+            type: 0x09, // 0x09: GIF Animation
+            bytes: bgGif.bytes,
+            size: bgGif.bytes.length,
+            crc: crc32(bgGif.bytes),
+            width: bgGif.width,
+            height: bgGif.height
+          });
+          cleanManifest.assets.push({
+            id: bgId,
+            name: "screen_bg.gif",
+            type: "image_gif",
+            width: bgGif.width,
+            height: bgGif.height
+          });
+        } else {
+          const bgBytes = await imageToRgb565(cleanManifest.screens[0].bg_image_data, 800, 480);
+          assetsToPack.push({
+            id: bgId,
+            name: "screen_bg.raw",
+            type: 0x02, // 0x02: RAW RGB565 chuẩn LVGL 9 Streaming
+            bytes: bgBytes,
+            size: bgBytes.length,
+            crc: crc32(bgBytes),
+            width: 800,
+            height: 480
+          });
+          cleanManifest.assets.push({
+            id: bgId,
+            name: "screen_bg.raw",
+            type: "image_raw",
+            width: 800,
+            height: 480
+          });
+        }
+
+        cleanManifest.screens[0].bg_asset_id = bgId;
+        delete cleanManifest.screens[0].bg_image_data;
+        delete cleanManifest.screens[0].bg_image_name;
+      }
+
+      // 2. Chuyển đổi tất cả ảnh từ Panel và Image widget (GIF giữ nguyên 0x09 để phát động, ảnh tĩnh sang RAW RGB565)
+      const screenBgHex = normalizeHex(cleanManifest.screens[0].bg_color || '#0b0f19');
+      for (const w of cleanManifest.screens[0].widgets) {
+        // Ảnh GIF động trên cả Image widget và Panel: đóng gói nguyên bản (asset 0x09) để ESP32 tự giải mã & phát animation
+        if ((w.type === 'image' || w.type === 'panel') && w.properties && w.properties.image_data) {
+          const gifInfo = extractGifBytesIfGif(w.properties.image_data, w.properties.image_name || '');
+          if (gifInfo) {
+            const gId = nextAssetId++;
+            const gBase = (w.properties.image_name ? w.properties.image_name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") : `gif_${gId}`);
+            const gName = `${gBase}.gif`;
+            assetsToPack.push({ id: gId, name: gName, type: 0x09, bytes: gifInfo.bytes, size: gifInfo.bytes.length,
+                                crc: crc32(gifInfo.bytes), width: gifInfo.width, height: gifInfo.height });
+            cleanManifest.assets.push({ id: gId, name: gName, type: "image_gif", width: gifInfo.width, height: gifInfo.height });
+            if (w.type === 'panel') {
+              w.bg_asset_id = gId;
+            } else {
+              w.properties.asset_id = gId;
+              w.properties.src = gName;
+            }
+            delete w.properties.image_data;
+            continue;
+          }
+        }
+
+        if (w.properties && w.properties.image_data) {
+          const targetW = Math.max(1, Math.round(w.w));
+          const targetH = Math.max(1, Math.round(w.h));
+          const st = w.style || {};
+          const bgOpa = st.bg_opa !== undefined ? st.bg_opa : 255;
+          const widgetBgHex = (bgOpa > 0 && st.bg_color) ? normalizeHex(st.bg_color) : screenBgHex;
+          const rawBytes = await imageToRgb565(w.properties.image_data, targetW, targetH, {
+            outerBgColor: screenBgHex,
+            bgColor: widgetBgHex,
+            radius: st.radius || 0,
+            borderWidth: st.border_width || 0,
+            borderColor: normalizeHex(st.border_color || '#334155'),
+            fit: w.properties.image_fit || (w.type === 'panel' ? 'cover' : 'contain')
+          });
+          const aId = nextAssetId++;
+          const baseName = (w.properties.image_name ? w.properties.image_name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") : `img_${aId}`);
+          const aName = `${baseName}.raw`;
+          
+          assetsToPack.push({
+            id: aId,
+            name: aName,
+            type: 0x02, // 0x02: RAW RGB565
+            bytes: rawBytes,
+            size: rawBytes.length,
+            crc: crc32(rawBytes),
+            width: targetW,
+            height: targetH
+          });
+
+          cleanManifest.assets.push({
+            id: aId,
+            name: aName,
+            type: "image_raw",
+            width: targetW,
+            height: targetH
+          });
+
+          if (w.type === 'panel') {
+            w.bg_asset_id = aId;
+          } else if (w.type === 'image') {
+            w.properties.asset_id = aId;
+            w.properties.src = aName;
+          }
+          delete w.properties.image_data;
+        }
+      }
+
+      // 3. Đóng gói các Font chữ tùy biến do người dùng thêm
+      for (const f of customFonts) {
+        assetsToPack.push({
+          id: f.id,
+          name: f.name + (f.type === 0x06 ? ".ttf" : ".bin"),
+          type: f.type, // 0x06 (TinyTTF) hoặc 0x05 (FONT_BIN)
+          bytes: f.bytes,
+          size: f.size,
+          crc: f.crc,
+          width: 0,
+          height: 0
+        });
+
+        cleanManifest.assets.push({
+          id: f.id,
+          name: f.name,
+          type: f.type === 0x06 ? "font_ttf" : "font_bin"
+        });
+      }
+
+      // 4. Tính toán cấu trúc bố cục tệp container .uipack
+      const assetCount = assetsToPack.length;
+      const tocOffset = HEADER_SIZE;
+      const tocTotalSize = assetCount * 64; // Mỗi mục TOC chiếm 64 bytes
+      const manifestOffset = align64(tocOffset + tocTotalSize);
+
+      const manifestStr = JSON.stringify(cleanManifest, null, 2);
+      const encoder = new TextEncoder();
+      const manifestBytes = encoder.encode(manifestStr);
+      const manifestSize = manifestBytes.length;
+
+      let currentOffset = align64(manifestOffset + manifestSize);
+      assetsToPack.forEach(a => {
+        a.offset = currentOffset;
+        currentOffset = align64(currentOffset + a.size);
+      });
+
+      const totalSize = currentOffset + 4; // +4 bytes cho Trailer CRC32
+
+      const buffer = new ArrayBuffer(totalSize);
+      const view = new DataView(buffer);
+      const u8 = new Uint8Array(buffer);
+
+      // 5. Đóng gói Header (64 bytes Little-Endian)
+      view.setUint32(0, 0x5549504B, true);      // Magic "UIPK"
+      view.setUint16(4, 0x0100, true);          // Version 1.0
+      view.setUint16(6, HEADER_SIZE, true);     // Header size 64
+      view.setUint32(8, 0x00000001, true);      // Flags (CRC32 enabled)
+      view.setUint32(12, totalSize, true);      // Total file size
+      view.setUint32(16, HEADER_SIZE, true);    // TOC offset
+      view.setUint16(20, assetCount, true);     // Asset count
+      view.setUint16(22, 0, true);              // Reserved1
+      view.setUint32(24, manifestOffset, true); // Manifest offset
+      view.setUint32(28, manifestSize, true);   // Manifest size
+
+      // Tính CRC32 cho 32 bytes đầu của Header
+      const first32 = new Uint8Array(buffer, 0, 32);
+      view.setUint32(32, crc32(first32), true);
+
+      // 6. Đóng gói Table of Contents (TOC) - 64 bytes mỗi entry (khớp chuẩn struct UIPackTOCEntry)
+      assetsToPack.forEach((a, idx) => {
+        const entryOffset = tocOffset + (idx * 64);
+        view.setUint16(entryOffset + 0, a.id, true);            // uint16_t id (2 bytes)
+        u8[entryOffset + 2] = a.type;                           // uint8_t type (1 byte)
+        u8[entryOffset + 3] = 1;                                // uint8_t flags (1 byte: PSRAM cacheable)
+        view.setUint32(entryOffset + 4, a.offset, true);        // uint32_t offset (4 bytes)
+        view.setUint32(entryOffset + 8, a.size, true);          // uint32_t size (4 bytes)
+        view.setUint32(entryOffset + 12, a.crc, true);          // uint32_t crc32 (4 bytes)
+
+        // Lưu kích thước ảnh width x height trong TOC (offset 16 và 18)
+        view.setUint16(entryOffset + 16, a.width || 0, true);   // uint16_t width (2 bytes)
+        view.setUint16(entryOffset + 18, a.height || 0, true);  // uint16_t height (2 bytes)
+
+        // Tên tài nguyên (tối đa 35 ký tự + null terminator, từ offset 20..55)
+        const nameBytes = encoder.encode(a.name);
+        for (let b = 0; b < Math.min(35, nameBytes.length); b++) {
+          u8[entryOffset + 20 + b] = nameBytes[b];
+        }
+      });
+
+      // 7. Ghi Manifest JSON
+      u8.set(manifestBytes, manifestOffset);
+
+      // 8. Ghi dữ liệu nhị phân các tệp ảnh RGB565 và Font
+      assetsToPack.forEach(a => {
+        u8.set(a.bytes, a.offset);
+      });
+
+      // 9. Ghi Trailer Checksum CRC32 (ở 4 bytes cuối tệp)
+      const contentForCrc = new Uint8Array(buffer, 0, totalSize - 4);
+      const trailerCrc = crc32(contentForCrc);
+      view.setUint32(totalSize - 4, trailerCrc, true);
+
+      // Tính CRC32 toàn bộ tệp (bao gồm cả 4 bytes trailer) để khớp với bộ đếm _runningCrc32 của TransferManager
+      const fileCrc = crc32(u8);
+
+      const filename = (cleanManifest.package.name.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'custom_ui') + '.uipack';
+
+      return {
+        buffer,
+        u8,
+        filename,
+        totalSize,
+        trailerCrc,
+        fileCrc,
+        assetCount
+      };
+    }
+
+    async function exportUIPack() {
+      try {
+        const pkg = await generateUiPackData();
+        const blob = new Blob([pkg.buffer], { type: "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = pkg.filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        alert(`Đã đóng gói thành công tệp ${pkg.filename} (${Math.round(pkg.totalSize / 1024)} KB, ${pkg.assetCount} tài nguyên ảnh/font, CRC32: 0x${pkg.trailerCrc.toString(16).toUpperCase()})!\nTất cả hình ảnh đã được chuyển đổi sang chuẩn RAW RGB565 tối ưu 100% cho chip ESP32-S3.`);
+      } catch (err) {
+        alert("Lỗi khi đóng gói: " + err.message);
+      }
+    }
+
+    // ==============================================================================
+    // 9. DIRECT WEB SERIAL FLASHING VỚI KHUNG TRUYỀN BINARY FRAMING CHUẨN
+    // ==============================================================================
+    function buildProtoPacket(cmd, seq, payload) {
+      const len = payload ? payload.length : 0;
+      // Khung: SOF (2B) + Header (6B) + Payload (len) + CRC32 (4B) + EOF (2B)
+      const totalLen = 2 + 6 + len + 4 + 2;
+      const pkt = new Uint8Array(totalLen);
+      const view = new DataView(pkt.buffer);
+
+      // 1. SOF (0xAA 0x55)
+      pkt[0] = 0xAA;
+      pkt[1] = 0x55;
+
+      // 2. Header: Version (1B), Cmd (1B), Seq (2B LE), Len (2B LE)
+      pkt[2] = 0x01; // Version
+      pkt[3] = cmd;  // Cmd
+      view.setUint16(4, seq, true); // Seq Little-Endian
+      view.setUint16(6, len, true); // Len Little-Endian
+
+      // 3. Payload
+      if (len > 0 && payload) {
+        pkt.set(payload, 8);
+      }
+
+      // 4. CRC32 tính trên Header (6B) + Payload (len)
+      const headerAndPayload = pkt.subarray(2, 8 + len);
+      const crcVal = crc32(headerAndPayload);
+      const crcOffset = 8 + len;
+      view.setUint32(crcOffset, crcVal, true);
+
+      // 5. EOF (0x55 0xAA)
+      pkt[crcOffset + 4] = 0x55;
+      pkt[crcOffset + 5] = 0xAA;
+
+      return pkt;
+    }
+
+    function showFlashModal(title, msg, percent = 0) {
+      let modal = document.getElementById('flash-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'flash-modal';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm';
+        modal.innerHTML = `
+          <div class="bg-slate-900 border border-slate-700 rounded-xl p-6 w-[420px] shadow-2xl space-y-4">
+            <div class="flex items-center gap-3">
+              <div id="flash-modal-icon" class="w-9 h-9 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg font-bold">⚡</div>
+              <div>
+                <h3 id="flash-modal-title" class="text-sm font-bold text-white">Nạp giao diện xuống ESP32</h3>
+                <p id="flash-modal-subtitle" class="text-xs text-slate-400">Giao tiếp trực tiếp qua Web Serial</p>
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-xs font-mono">
+                <span id="flash-modal-status" class="text-slate-300">Đang chuẩn bị...</span>
+                <span id="flash-modal-percent" class="text-emerald-400 font-bold">0%</span>
+              </div>
+              <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700">
+                <div id="flash-modal-bar" class="bg-gradient-to-r from-emerald-500 to-sky-500 h-full rounded-full transition-all duration-150" style="width: 0%"></div>
+              </div>
+            </div>
+            <div id="flash-modal-footer" class="pt-2 flex justify-end">
+              <button id="flash-modal-close-btn" onclick="document.getElementById('flash-modal').remove()" class="hidden px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-white rounded-lg border border-slate-700 transition">Đóng</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+      document.getElementById('flash-modal-title').innerText = title;
+      document.getElementById('flash-modal-status').innerText = msg;
+      document.getElementById('flash-modal-percent').innerText = `${percent}%`;
+      document.getElementById('flash-modal-bar').style.width = `${percent}%`;
+    }
+
+    function updateFlashModal(msg, percent) {
+      const statusEl = document.getElementById('flash-modal-status');
+      const percentEl = document.getElementById('flash-modal-percent');
+      const barEl = document.getElementById('flash-modal-bar');
+      if (statusEl) statusEl.innerText = msg;
+      if (percentEl) percentEl.innerText = `${percent}%`;
+      if (barEl) barEl.style.width = `${percent}%`;
+    }
+
+    function closeFlashModalSuccess(msg) {
+      updateFlashModal(msg, 100);
+      const closeBtn = document.getElementById('flash-modal-close-btn');
+      if (closeBtn) closeBtn.classList.remove('hidden');
+    }
+
+    async function flashOverWebSerial() {
+      if (!("serial" in navigator)) {
+        alert("Trình duyệt của bạn chưa hỗ trợ Web Serial API. Vui lòng sử dụng Google Chrome hoặc Microsoft Edge để nạp trực tiếp qua cổng USB / Bluetooth COM!");
+        return;
+      }
+
+      const baudSelect = document.getElementById('usb-baudrate-select');
+      const selectedBaud = baudSelect ? parseInt(baudSelect.value, 10) : 921600;
+      try { localStorage.setItem('uipack_usb_baud', selectedBaud.toString()); } catch (_) {}
+
+      let port = null;
+      let reader = null;
+      let writer = null;
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: selectedBaud, bufferSize: 16384 });
+        try {
+          // Giữ RTS=false để chip ESP32-S3 USB-Serial/JTAG không bị reset khi mở/đóng cổng
+          await port.setSignals({ dataTerminalReady: true, requestToSend: false });
+        } catch (_) {}
+
+        showFlashModal("Đang nạp xuống ESP32", `Đang kết nối USB (${selectedBaud.toLocaleString()} baud) & đóng gói...`, 5);
+        const pkg = await generateUiPackData();
+        const encoder = new TextEncoder();
+
+        writer = port.writable.getWriter();
+        reader = port.readable ? port.readable.getReader() : null;
+        let rxBuf = new Uint8Array(0);
+
+        async function waitForAckFrame(expectedRespCmd, timeoutMs = 400) {
+          if (!reader) {
+            await new Promise(r => setTimeout(r, 12));
+            return null;
+          }
+          const deadline = performance.now() + timeoutMs;
+          while (performance.now() < deadline) {
+            // Kiểm tra trong rxBuf đã có khung 0xAA 0x55 ... 0x55 0xAA chưa
+            for (let i = 0; i + 14 <= rxBuf.length; i++) {
+              if (rxBuf[i] === 0xAA && rxBuf[i + 1] === 0x55 && rxBuf[i + 2] === 0x01) {
+                const rCmd = rxBuf[i + 3];
+                const rLen = rxBuf[i + 6] | (rxBuf[i + 7] << 8);
+                const frameLen = 2 + 6 + rLen + 4 + 2;
+                if (i + frameLen <= rxBuf.length) {
+                  if (rxBuf[i + frameLen - 2] === 0x55 && rxBuf[i + frameLen - 1] === 0xAA) {
+                    const payload = rxBuf.slice(i + 8, i + 8 + rLen);
+                    rxBuf = rxBuf.slice(i + frameLen);
+                    if (rCmd === expectedRespCmd) return payload;
+                  }
+                }
+              }
+            }
+            const rem = Math.max(5, deadline - performance.now());
+            const readRes = await Promise.race([
+              reader.read(),
+              new Promise(r => setTimeout(() => r({ timeout: true }), rem))
+            ]);
+            if (readRes && readRes.timeout) break;
+            if (readRes && readRes.done) break;
+            if (readRes && readRes.value && readRes.value.length > 0) {
+              const merged = new Uint8Array(rxBuf.length + readRes.value.length);
+              merged.set(rxBuf, 0);
+              merged.set(readRes.value, rxBuf.length);
+              rxBuf = merged;
+            }
+          }
+          return null;
+        }
+
+        let seq = 1;
+
+        // 1. Gửi lệnh CMD_START_TRANSFER (0x02) -> chờ RESP_START_ACK (0x82)
+        updateFlashModal("Khởi tạo phiên truyền: " + pkg.filename, 10);
+        const nameBytes = encoder.encode(pkg.filename);
+        const startPayload = new Uint8Array(11 + nameBytes.length);
+        const startView = new DataView(startPayload.buffer);
+
+        startView.setUint32(0, pkg.totalSize, true);     // totalBytes
+        startView.setUint32(4, pkg.fileCrc, true);       // expectedCrc (toàn bộ tệp)
+        startView.setUint16(8, 1024, true);              // maxChunk = 1024
+        startPayload[10] = nameBytes.length;             // nameLen
+        startPayload.set(nameBytes, 11);                 // filename
+
+        const startPkt = buildProtoPacket(0x02, seq++, startPayload);
+        await writer.write(startPkt);
+        await waitForAckFrame(0x82, 800);
+
+        // 2. Gửi từng khối CMD_WRITE_CHUNK (0x03) -> chờ RESP_CHUNK_ACK (0x83)
+        const CHUNK_SIZE = 1024;
+        const totalChunks = Math.ceil(pkg.totalSize / CHUNK_SIZE);
+
+        for (let i = 0; i < totalChunks; i++) {
+          const offset = i * CHUNK_SIZE;
+          const end = Math.min(offset + CHUNK_SIZE, pkg.totalSize);
+          const chunkLen = end - offset;
+          const chunkData = pkg.u8.subarray(offset, end);
+
+          const chunkPayload = new Uint8Array(6 + chunkLen);
+          const chunkView = new DataView(chunkPayload.buffer);
+          chunkView.setUint32(0, offset, true);
+          chunkView.setUint16(4, chunkLen, true);
+          chunkPayload.set(chunkData, 6);
+
+          const chunkPkt = buildProtoPacket(0x03, seq++, chunkPayload);
+          await writer.write(chunkPkt);
+          await waitForAckFrame(0x83, 250);
+
+          if ((i & 3) === 0 || i === totalChunks - 1) {
+            const percent = Math.min(90, Math.round(10 + ((i + 1) / totalChunks) * 80));
+            updateFlashModal(`Đang truyền dữ liệu: ${Math.round(end / 1024)} KB / ${Math.round(pkg.totalSize / 1024)} KB (${i + 1}/${totalChunks})`, percent);
+          }
+        }
+
+        // 3. Gửi lệnh CMD_FINISH_TRANSFER (0x04) -> chờ RESP_FINISH_ACK (0x84)
+        updateFlashModal("Xác thực mã kiểm tra toàn vẹn CRC32...", 92);
+        const finishPayload = new Uint8Array(4);
+        new DataView(finishPayload.buffer).setUint32(0, pkg.fileCrc, true);
+        const finishPkt = buildProtoPacket(0x04, seq++, finishPayload);
+        await writer.write(finishPkt);
+        const finishAck = await waitForAckFrame(0x84, 1500);
+        if (finishAck && finishAck.length > 0 && finishAck[0] !== 0) {
+          throw new Error("ESP32 báo lỗi xác thực tệp (mã lỗi: " + finishAck[0] + ")");
+        }
+
+        // 4. Kích hoạt giao diện mới ngay lập tức CMD_SWITCH_PACKAGE (0x08) -> chờ RESP_SWITCH_ACK (0x88)
+        updateFlashModal("Kích hoạt giao diện mới trên màn hình LCD...", 96);
+        const switchPkt = buildProtoPacket(0x08, seq++, nameBytes);
+        await writer.write(switchPkt);
+        await waitForAckFrame(0x88, 1000);
+        await new Promise(r => setTimeout(r, 150));
+
+        if (reader) {
+          try { await reader.cancel(); reader.releaseLock(); } catch (_) {}
+          reader = null;
+        }
+        if (writer) {
+          try { writer.releaseLock(); } catch (_) {}
+          writer = null;
+        }
+        await port.close();
+
+        closeFlashModalSuccess(`Đã nạp và kích hoạt thành công ${pkg.filename} (${Math.round(pkg.totalSize / 1024)} KB) lên màn hình LCD!`);
+      } catch (err) {
+        if (reader) {
+          try { await reader.cancel(); reader.releaseLock(); } catch (_) {}
+        }
+        if (writer) {
+          try { writer.releaseLock(); } catch (_) {}
+        }
+        if (port) {
+          try { await port.close(); } catch (_) {}
+        }
+        alert("Lỗi khi nạp qua Web Serial: " + err.message);
+        const modal = document.getElementById('flash-modal');
+        if (modal) modal.remove();
+      }
+    }
+
+    // ==============================================================================
+    // 10. DIRECT BLUETOOTH LOW ENERGY (BLE 5.0) SYNC - NORDIC UART SERVICE (NUS)
+    // ==============================================================================
+    async function syncOverWebBluetooth() {
+      if (!("bluetooth" in navigator)) {
+        alert("Trình duyệt của bạn chưa hỗ trợ Web Bluetooth API.\n\nVui lòng sử dụng Google Chrome hoặc Microsoft Edge (trên Windows, macOS hoặc Android) và đảm bảo đã bật Bluetooth trên thiết bị!");
+        return;
+      }
+
+      let device = null;
+      let server = null;
+      let txChar = null;
+      let rxChar = null;
+      let notificationHandler = null;
+
+      try {
+        showFlashModal("Đồng bộ Bluetooth BLE", "Đang quét thiết bị ESP32-S3-Touch-LCD...", 5);
+
+        const NUS_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+        const NUS_RX_CHAR_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"; // Host ghi lệnh vào đây
+        const NUS_TX_CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"; // ESP32 phản hồi Notify
+
+        device = await navigator.bluetooth.requestDevice({
+          filters: [
+            { namePrefix: "ESP32-S3" }
+          ],
+          optionalServices: [NUS_SERVICE_UUID]
+        });
+
+        updateFlashModal("Đang kết nối GATT tới " + (device.name || "ESP32-S3") + "...", 10);
+        server = await device.gatt.connect();
+
+        updateFlashModal("Đang mở dịch vụ Nordic UART (NUS)...", 15);
+        const service = await server.getPrimaryService(NUS_SERVICE_UUID);
+        rxChar = await service.getCharacteristic(NUS_RX_CHAR_UUID);
+        txChar = await service.getCharacteristic(NUS_TX_CHAR_UUID);
+
+        let rxBuf = new Uint8Array(0);
+        notificationHandler = (event) => {
+          const val = new Uint8Array(event.target.value.buffer);
+          if (val.length > 0) {
+            const merged = new Uint8Array(rxBuf.length + val.length);
+            merged.set(rxBuf, 0);
+            merged.set(val, rxBuf.length);
+            rxBuf = merged;
+          }
+        };
+
+        await txChar.startNotifications();
+        txChar.addEventListener('characteristicvaluechanged', notificationHandler);
+
+        async function waitForAckFrame(expectedRespCmd, timeoutMs = 2500) {
+          const deadline = performance.now() + timeoutMs;
+          while (performance.now() < deadline) {
+            for (let i = 0; i + 14 <= rxBuf.length; i++) {
+              if (rxBuf[i] === 0xAA && rxBuf[i + 1] === 0x55 && rxBuf[i + 2] === 0x01) {
+                const rCmd = rxBuf[i + 3];
+                const rLen = rxBuf[i + 6] | (rxBuf[i + 7] << 8);
+                const frameLen = 2 + 6 + rLen + 4 + 2;
+                if (i + frameLen <= rxBuf.length) {
+                  if (rxBuf[i + frameLen - 2] === 0x55 && rxBuf[i + frameLen - 1] === 0xAA) {
+                    const payload = rxBuf.slice(i + 8, i + 8 + rLen);
+                    rxBuf = rxBuf.slice(i + frameLen);
+                    if (rCmd === expectedRespCmd) return payload;
+                  }
+                }
+              }
+            }
+            await new Promise(r => setTimeout(r, 15));
+          }
+          return null;
+        }
+
+        async function writeBleData(dataUint8) {
+          const BLE_MAX_WRITE = 244;
+          for (let offset = 0; offset < dataUint8.length; offset += BLE_MAX_WRITE) {
+            const slice = dataUint8.subarray(offset, Math.min(offset + BLE_MAX_WRITE, dataUint8.length));
+            if (rxChar.writeValueWithoutResponse) {
+              await rxChar.writeValueWithoutResponse(slice);
+            } else {
+              await rxChar.writeValue(slice);
+            }
+            await new Promise(r => setTimeout(r, 6));
+          }
+        }
+
+        updateFlashModal("Đang đóng gói giao diện & tài nguyên...", 20);
+        const pkg = await generateUiPackData();
+        const encoder = new TextEncoder();
+        let seq = 1;
+
+        // 1. Gửi lệnh CMD_START_TRANSFER (0x02)
+        updateFlashModal("Khởi tạo phiên truyền BLE: " + pkg.filename, 25);
+        const nameBytes = encoder.encode(pkg.filename);
+        const startPayload = new Uint8Array(11 + nameBytes.length);
+        const startView = new DataView(startPayload.buffer);
+        startView.setUint32(0, pkg.totalSize, true);
+        startView.setUint32(4, pkg.fileCrc, true);
+        startView.setUint16(8, 512, true);
+        startPayload[10] = nameBytes.length;
+        startPayload.set(nameBytes, 11);
+
+        const startPkt = buildProtoPacket(0x02, seq++, startPayload);
+        await writeBleData(startPkt);
+        await waitForAckFrame(0x82, 3000);
+
+        // 2. Gửi từng khối dữ liệu CMD_WRITE_CHUNK (0x03)
+        const CHUNK_SIZE = 490;
+        const totalChunks = Math.ceil(pkg.totalSize / CHUNK_SIZE);
+
+        for (let i = 0; i < totalChunks; i++) {
+          const offset = i * CHUNK_SIZE;
+          const end = Math.min(offset + CHUNK_SIZE, pkg.totalSize);
+          const chunkLen = end - offset;
+          const chunkData = pkg.u8.subarray(offset, end);
+
+          const chunkPayload = new Uint8Array(6 + chunkLen);
+          const chunkView = new DataView(chunkPayload.buffer);
+          chunkView.setUint32(0, offset, true);
+          chunkView.setUint16(4, chunkLen, true);
+          chunkPayload.set(chunkData, 6);
+
+          const chunkPkt = buildProtoPacket(0x03, seq++, chunkPayload);
+          await writeBleData(chunkPkt);
+          await waitForAckFrame(0x83, 500);
+
+          if ((i & 1) === 0 || i === totalChunks - 1) {
+            const percent = Math.min(92, Math.round(25 + ((i + 1) / totalChunks) * 65));
+            updateFlashModal(`Đang truyền BLE: ${Math.round(end / 1024)} KB / ${Math.round(pkg.totalSize / 1024)} KB (${i + 1}/${totalChunks})`, percent);
+          }
+        }
+
+        // 3. Gửi lệnh CMD_FINISH_TRANSFER (0x04)
+        updateFlashModal("Xác thực mã kiểm tra toàn vẹn CRC32...", 94);
+        const finishPayload = new Uint8Array(4);
+        new DataView(finishPayload.buffer).setUint32(0, pkg.fileCrc, true);
+        const finishPkt = buildProtoPacket(0x04, seq++, finishPayload);
+        await writeBleData(finishPkt);
+        const finishAck = await waitForAckFrame(0x84, 3000);
+        if (finishAck && finishAck.length > 0 && finishAck[0] !== 0) {
+          throw new Error("ESP32 báo lỗi xác thực CRC32 (mã lỗi: " + finishAck[0] + ")");
+        }
+
+        // 4. Kích hoạt giao diện mới CMD_SWITCH_PACKAGE (0x08)
+        updateFlashModal("Kích hoạt giao diện mới trên màn hình LCD...", 97);
+        const switchPkt = buildProtoPacket(0x08, seq++, nameBytes);
+        await writeBleData(switchPkt);
+        await waitForAckFrame(0x88, 2000);
+
+        if (txChar && notificationHandler) {
+          try { txChar.removeEventListener('characteristicvaluechanged', notificationHandler); } catch (_) {}
+        }
+        if (device && device.gatt && device.gatt.connected) {
+          device.gatt.disconnect();
+        }
+
+        closeFlashModalSuccess(`Đã đồng bộ thành công ${pkg.filename} (${Math.round(pkg.totalSize / 1024)} KB) qua Bluetooth BLE!`);
+      } catch (err) {
+        if (txChar && notificationHandler) {
+          try { txChar.removeEventListener('characteristicvaluechanged', notificationHandler); } catch (_) {}
+        }
+        if (device && device.gatt && device.gatt.connected) {
+          device.gatt.disconnect();
+        }
+        alert("Lỗi khi đồng bộ qua Bluetooth: " + err.message);
+        const modal = document.getElementById('flash-modal');
+        if (modal) modal.remove();
+      }
+    }
+
+    // Khôi phục tên Project đã lưu
+    try {
+      const savedProj = localStorage.getItem('uipack_project_name');
+      const nameInput = document.getElementById('project-name-input');
+      const mobNameInput = document.getElementById('mobile-project-name-input');
+      if (savedProj) {
+        if (nameInput) nameInput.value = savedProj;
+        if (mobNameInput) mobNameInput.value = savedProj;
+        if (!currentManifest.package) currentManifest.package = {};
+        currentManifest.package.name = savedProj;
+      }
+    } catch (_) {}
+
+    // Khôi phục tốc độ Baud USB đã lưu
+    try {
+      const savedBaud = localStorage.getItem('uipack_usb_baud');
+      const baudSelect = document.getElementById('usb-baudrate-select');
+      const baudMobSelect = document.getElementById('mobile-usb-baudrate-select');
+      if (savedBaud) {
+        if (baudSelect) baudSelect.value = savedBaud;
+        if (baudMobSelect) baudMobSelect.value = savedBaud;
+      }
+    } catch (_) {}
+
+    // Initialize with Clock Template by default
+    loadPresetTemplate('clock');
+
+    // Tự động căn vừa (Auto-fit zoom) cho thiết bị di động / máy tính bảng
+    window.addEventListener('load', () => {
+      if (window.innerWidth < 1024) {
+        setTimeout(autoFitZoom, 150);
+      } else {
+        setZoom(1.0);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth < 1024) {
+        const palette = document.getElementById('palette-sidebar');
+        const inspector = document.getElementById('property-panel');
+        const isDrawerOpen = (palette && !palette.classList.contains('-translate-x-full')) ||
+                             (inspector && !inspector.classList.contains('translate-x-full'));
+        if (!isDrawerOpen) {
+          autoFitZoom();
+        }
+      }
+    });
+
+    window.addEventListener('orientationchange', () => {
+      setTimeout(autoFitZoom, 250);
+    });
+  </script>
+</body>
+</html>
